@@ -1,0 +1,11 @@
+
+*.pyc
+*.a
+*.so
+*.o
+*.swp
+*.log
+*xml
+ble/
+a.out
+__pycache__/
