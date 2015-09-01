@@ -11,7 +11,7 @@
 #include <bluetooth/hci.h>
 #include <bluetooth/hci_lib.h>
 
-extern int c_set_adaptor_address(int,char*);
+extern int c_set_adapter_address(int,char*);
 
 static void * die(const char* msg)
 {
@@ -22,7 +22,7 @@ static void * die(const char* msg)
 /* 
 */
 __attribute__((unused))
-static PyObject* py_set_adaptor_name(PyObject* self, PyObject* args)
+static PyObject* py_set_adapter_name(PyObject* self, PyObject* args)
 {
 
 	int dd,hdev;
@@ -57,12 +57,12 @@ static PyObject* py_set_adaptor_name(PyObject* self, PyObject* args)
 
 
 __attribute__((unused))
-static PyObject* py_set_adaptor_address(PyObject* self, PyObject* args)
+static PyObject* py_set_adapter_address(PyObject* self, PyObject* args)
 {
     int dev;
     char* new_addr;
     PyArg_ParseTuple(args, "is", &dev, &new_addr);
-    int ret = c_set_adaptor_address(dev,new_addr);
+    int ret = c_set_adapter_address(dev,new_addr);
     if (ret != 0)
     {
         return NULL;
@@ -74,7 +74,7 @@ static PyObject* py_set_adaptor_address(PyObject* self, PyObject* args)
 /* 
 */
 __attribute__((unused))
-static PyObject* py_set_adaptor_class(PyObject* self, PyObject* args)
+static PyObject* py_set_adapter_class(PyObject* self, PyObject* args)
 {
     int hdev;
     char* class;
@@ -109,9 +109,9 @@ static PyObject* py_set_adaptor_class(PyObject* self, PyObject* args)
 /*  Bind Python names to c names
  * */
 static PyMethodDef py_module_methods[] = {
-    {"set_adaptor_name", py_set_adaptor_name, METH_VARARGS},
-    {"set_adaptor_class", py_set_adaptor_class, METH_VARARGS},
-    {"set_adaptor_address", py_set_adaptor_address, METH_VARARGS},
+    {"set_adapter_name", py_set_adapter_name, METH_VARARGS},
+    {"set_adapter_class", py_set_adapter_class, METH_VARARGS},
+    {"set_adapter_address", py_set_adapter_address, METH_VARARGS},
     {NULL, NULL}
 };
 

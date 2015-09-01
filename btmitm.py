@@ -2,15 +2,18 @@
 
 import sys
 from argparser import args,parser
-from btmitm_mitm import mitm
+from btmitm_mitm import Btmitm
 from btmitm_scan import *
-from btmitm_adaptor import *
+from btmitm_adapter import *
 
 
 if args.addr_master and args.addr_slave:
     print 'Running MiTM on master ', args.addr_master, ' and slave ', args.addr_slave
-    
-    mitm(args.addr_slave, args.addr_master, skip=args.skip)
+    btmitm = Btmitm(target_master = args.addr_master,
+                    target_slave = args.addr_slave,
+                    already_paired = args.skip
+                    )
+    btmitm.mitm()
 
 elif args.set_address or args.set_class or args.set_name: 
     if not args.bluetooth:
@@ -24,7 +27,7 @@ elif args.set_address or args.set_class or args.set_name:
         adaptor_name(args.bluetooth,args.set_name)
 
 
-if args.list:
+elif args.list:
     print('Run "hcitool dev" to see adaptors')
     print('Run "hciconfig -a" to see more adaptor information')
 else:

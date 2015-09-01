@@ -22,23 +22,23 @@ def instrument_bluetoothd():
 def inquire(addr):
     return parse_inq(_run(['sdptool','records', addr]), addr)
 
-def enable_adaptor(adapt, cond=True):
+def enable_adapter(adapt, cond=True):
     _run(['hciconfig',adapt, 'up' if cond else 'down'])
 
-def reset_adaptor(adapt):
+def reset_adapter(adapt):
     _run(['hciconfig',adapt, 'reset'])
 
-def advertise_adaptor(adapt, cond=True):
+def advertise_adapter(adapt, cond=True):
     _run(['hciconfig',adapt, 'piscan' if cond else 'pscan'])
 
-def pair_adaptor(adapt, addr):
+def pair_adapter(adapt, addr):
     print _run(['python','bluez_simple_agent.py', adapt, addr])
 
-def enable_adaptor_ssp(adapt, cond):
+def enable_adapter_ssp(adapt, cond):
     _run(['hciconfig',adapt,'sspmode','1' if cond else '0'])
 
 
-def list_adaptors():
+def list_adapters():
     s = _run(['hciconfig','-a'])
     return re.compile(r'(hci[0-9]+):').findall(s)
 
@@ -59,30 +59,31 @@ def lookup_info(addr, **kwargs):
         print 'Still looking for ', addr,'...', ' Is it discoverable? '
 
 
-def adaptor_address(inter, addr=None):
+def adapter_address(inter, addr=None):
     if addr is not None:
         inter = int(str(inter).replace('hci',''))
         if (bluetooth.is_valid_address(addr)):
-            print('device set to ', clone.set_adaptor_address(inter,addr))
+            print('device set to ', clone.set_adapter_address(inter,addr))
         else:
             raise ValueError('Invalid Address: '+addr);
     else:
         s = _run(['hciconfig',inter])
         return re.compile(r'Address: ([A-Fa-f0-9:]*)').findall(s)[0]
 
-def adaptor_class(inter, clas=None):
+def adapter_class(inter, clas=None):
     if clas is not None:
         s = _run(['hciconfig',inter, 'class', clas])
         return s
-        #clone.set_adaptor_class(inter,clas);
+        #clone.set_adapter_class(inter,clas);
     else:
         s = _run(['hciconfig',inter, 'class'])
         return re.compile(r'Class: ([A-Fa-fx0-9]*)').findall(s)[0]
 
-def adaptor_name(inter, name=None):
+def adapter_name(inter, name=None):
     if name is not None:
-        inter = int(str(inter).replace('hci',''))
-        clone.set_adaptor_name(inter,name);
+        #inter = int(str(inter).replace('hci',''))
+        #clone.set_adapter_name(inter,name);
+        s = _run(['hciconfig',inter, 'name', name])
     else:
         s = _run(['hciconfig',inter, 'name'])
         return re.compile(r'Name: \'(.*)\'').findall(s)[0]
