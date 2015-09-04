@@ -64,8 +64,10 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
     // Nope, all RFCOMM is mine
     if (isValidChannel( rc->rc_channel ))
     {
+/*
         fprintf(stderr,"Blocked rfcomm channel %d\n", rc->rc_channel);
         return -1;
+*/
     }
 
     if (l2->l2_psm == 1){
@@ -73,13 +75,13 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
         fprintf(stderr, "Moved system SDP PSM 1 to %d so its up for grabs.\n", l2->l2_psm);
         return _bind(sockfd, addr, addrlen);
     }
-
     if (isValidPSM(l2->l2_psm) && l2->l2_psm < 4096)
     {
+/*
         fprintf(stderr,"Blocked l2cap psm %d\n", l2->l2_psm);
         return -1;
+*/
     }
-
     return _bind(sockfd, addr, addrlen);
 
 }
