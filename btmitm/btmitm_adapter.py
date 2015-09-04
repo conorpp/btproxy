@@ -16,7 +16,7 @@ def _run(cmd):
         raise RuntimeError( ' '.join(cmd)+' failed')
 
 def instrument_bluetoothd():
-    _run(['bash','replace_bluetoothd.bash'])
+    _run(['bash','replace_bluetoothd'])
 
 
 def inquire(addr):
@@ -32,7 +32,7 @@ def advertise_adapter(adapt, cond=True):
     _run(['hciconfig',adapt, 'piscan' if cond else 'pscan'])
 
 def pair_adapter(adapt, addr):
-    _run(['python','bluez_simple_agent.py', adapt, addr])
+    _run(['bash','bluez_simple_agent_nouser', adapt, addr])
 
 def enable_adapter_ssp(adapt, cond):
     _run(['hciconfig',adapt,'sspmode','1' if cond else '0'])
