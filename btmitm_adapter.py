@@ -32,7 +32,7 @@ def advertise_adapter(adapt, cond=True):
     _run(['hciconfig',adapt, 'piscan' if cond else 'pscan'])
 
 def pair_adapter(adapt, addr):
-    print _run(['python','bluez_simple_agent.py', adapt, addr])
+    _run(['python','bluez_simple_agent.py', adapt, addr])
 
 def enable_adapter_ssp(adapt, cond):
     _run(['hciconfig',adapt,'sspmode','1' if cond else '0'])
@@ -63,7 +63,7 @@ def adapter_address(inter, addr=None):
     if addr is not None:
         inter = int(str(inter).replace('hci',''))
         if (bluetooth.is_valid_address(addr)):
-            print('device set to ', clone.set_adapter_address(inter,addr))
+            print('device set to ' + clone.set_adapter_address(inter,addr))
         else:
             raise ValueError('Invalid Address: '+addr);
     else:

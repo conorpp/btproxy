@@ -11,11 +11,7 @@ def master_cb(req):
         req is the incoming packet as a byte array
         starting with the length of packet at offset 0x0
     """
-    if '1a1jc5444r7252367' in req:
-        print 'REPLACING!!'
-        req=req.replace('1a1jc5444r7252367','1fafp34384w187315')
-
-    print '<<<<< ', repr(req)
+    print '<< ', repr(req)
     open('mastermessages.log', 'a+b').write(req)
     return req
 
@@ -24,10 +20,7 @@ def slave_cb(res):
         Same as above but it's from slave
         about to be sent to master
     """
-    if '1a1jc5444r7252367' in res:
-        print 'REPLACING!!'
-        res=res.replace('1a1jc5444r7252367','1fafp34384w187315')
-    print '>>>>> ', repr(res)
+    print '>> ', repr(res)
     open('slavemessages.log', 'a+b').write(res)
     return res
 
