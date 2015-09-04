@@ -5,6 +5,7 @@
 *.o
 *.swp
 *.log
+.last-btmitm-pairing
 *xml
 ble/
 a.out
