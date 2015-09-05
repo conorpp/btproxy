@@ -178,7 +178,7 @@ Run
     sudo rfkill unblock all
 ```
 
-#### UserWarning: <path>/.python-eggs is writable by group/others
+#### UserWarning: \<path\>/.python-eggs is writable by group/others
 
 Fix
 
