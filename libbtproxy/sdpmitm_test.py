@@ -2,7 +2,7 @@
 # Run this to MiTM SDP
 
 import sys
-from btmitm_mitm import mitm_sdp
+from mitm import mitm_sdp
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:

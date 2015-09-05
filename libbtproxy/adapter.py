@@ -1,9 +1,8 @@
 # Command line interface
 
 from argparser import args
-import subprocess,sys,re
+import subprocess,sys,re,imp,os
 import bluetooth, clone
-import bluez_simple_agent
 
 
 def _run(cmd):
@@ -16,7 +15,7 @@ def _run(cmd):
         raise RuntimeError( ' '.join(cmd)+' failed')
 
 def instrument_bluetoothd():
-    _run(['bash','replace_bluetoothd'])
+    _run(['bash','replace_bluetoothd',imp.find_module('blocksdp')[1]])
 
 
 def inquire(addr):
@@ -32,7 +31,8 @@ def advertise_adapter(adapt, cond=True):
     _run(['hciconfig',adapt, 'piscan' if cond else 'pscan'])
 
 def pair_adapter(adapt, addr):
-    _run(['bash','bluez_simple_agent_nouser', adapt, addr])
+    path = _run(['bash','which','bluez_simple_agent_nouser']).strip()
+    _run(['python', path, adapt, addr])
 
 def enable_adapter_ssp(adapt, cond):
     _run(['hciconfig',adapt,'sspmode','1' if cond else '0'])
@@ -92,16 +92,16 @@ def adapter_name(inter, name=None):
 def parse_inq(inq,target):
     lines = inq.split('\n')
     services = []
-    device = {'host': target, 'description': 'btmitm',
-                'provider':'btmitm', 'service-classes':None,
+    device = {'host': target, 'description': 'btproxy',
+                'provider':'btproxy', 'service-classes':None,
                 'service-id':None, 'profiles':None}
     append = False
     for i in lines:
         if append:
             if device.get('name',False): 
                 services.append(device)
-                device = {'host': target, 'description': 'btmitm',
-                            'provider':'btmitm', 'service-classes':None,
+                device = {'host': target, 'description': 'btproxy',
+                            'provider':'btproxy', 'service-classes':None,
                             'service-id':None, 'profiles':None}
 
                 append = False

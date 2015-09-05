@@ -3,20 +3,18 @@ import argparse,sys
 
 
 parser = argparse.ArgumentParser(
-                    description='Bluetooth MiTM Proxy'
+                    description="""Bluetooth MiTM Proxy.
+                                   For analyzing bluetooth connections actively. """
                     )
 
 parser.add_argument('addr_master', help='Bluetooth address of target master device', nargs='?',default=None)
 parser.add_argument('addr_slave', help='Bluetooth address of target slave device', nargs='?',default=None)
 
-parser.add_argument('-s','--scan', help='Scan for advertising Bluetooth devices', action='store_true')
-
-parser.add_argument('-d','--detailed', help='Additionally lookup services when scanning', action='store_true')
-
-parser.add_argument('-a','--set-address', help='Address to set for Bluetooth adaptor (requires -b)', )
+parser.add_argument('-a','--set-address', help='Address to set for Bluetooth adaptor (requires -i)', )
 parser.add_argument('-n','--repair', help='Don\'t reuse existing paired connection', action='store_true')
+parser.add_argument('-c','--copy-addresses', help='Copy the address of the target devices to adapters.  Will use the slave address if only using one adapter.  Useful for emulating some devices.  This may not work on some adapters.', action='store_true')
 
-parser.add_argument('-b','--bluetooth', help='Select a Bluetooth adaptor', )
+parser.add_argument('-i','--interface', help='Select a Bluetooth interface to use (for only using one adapter)', )
 parser.add_argument('-l','--list', help='List Adaptors', action='store_true')
 
 parser.add_argument('-1','--master-name', help='Spoofed name to use for master adaptor', default=None)

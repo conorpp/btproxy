@@ -2,9 +2,8 @@ import bluetooth, sys, time, select, os
 import argparser,pickle
 from threading import Thread
 from bluetooth import *
-from btmitm_utils import *
-from btmitm_adapter import *
-from bluez_simple_agent import Paired
+from utils import *
+from adapter import *
 
 
 # increments the last octet of a mac addr and returns it as string
@@ -128,24 +127,23 @@ def mitm_sdp(master_addr,slave_addr):
                     s.rebuild()
 
 
-class Btmitm():
+class Btproxy():
     def __init__(self,**kwargs):
         self.addrport = ''
-        self.slave_adapter=''
-        self.master_adapter=''
-        self.shared_adapter=''
         self.shared = False
         self.slave_info = {}
         self.master_info = {}
-        self.pickle_path = '.last-btmitm-pairing'
+        self.pickle_path = '.last-btproxy-pairing'
         self._options = [
                 ('target_slave',None),
                 ('target_master',None),
                 ('already_paired',False),
-                ('slave_name','btmitm_slave'),
-                ('master_name','btmitm_master'),
+                ('slave_name','btproxy_slave'),
+                ('master_name','btproxy_master'),
                 ('master_adapter',None),
                 ('slave_adapter',None),
+                ('shared_adapter',None),
+                ('clone_addresses',False),
                 ]
         for i in self._options:
             setattr(self,i[0],i[1])
@@ -155,6 +153,11 @@ class Btmitm():
         for i in self._options:
             if i[0] in kwargs:
                 setattr(self,i[0],kwargs[i[0]])
+
+    def setInterface(self, inter):
+        self.slave_adapter = inter
+        self.master_adapter = inter
+        self.shared = True
 
     def pair(self,adapter,remote_addr,**kwargs):
         tries = kwargs.get('tries',15)
@@ -287,6 +290,12 @@ class Btmitm():
             self.slave_adapter = self.master_adapter
             self.master_adapter = tmp
 
+    def setAddresses(self,):
+        if self.clone_addresses:
+            adapter_address(self.slave_adapter, inc_last_octet(self.target_master))
+            if not shared:
+                adapter_address(self.master_adapter, inc_last_octet(self.target_slave))
+
     def setup_adapters(self,):
         if os.getuid() != 0:
             print "Must run as root. (sudo)"
@@ -294,9 +303,9 @@ class Btmitm():
             sys.exit(1)
 
         instrument_bluetoothd()
-        adapters = list_adapters()
 
-        if 1:
+        if not self.shared:
+            adapters = list_adapters()
             master_adapter = ''
             slave_adapter = ''
             if len(adapters) < 2:
@@ -312,17 +321,16 @@ class Btmitm():
                 master_adapter = adapters[1]
             self.option(master_adapter = master_adapter)
             self.option(slave_adapter = slave_adapter)
+
         self.set_adapter_order()
-        enable_adapter(self.master_adapter,True)
+        enable_adapter(self.slave_adapter,True)
+
+        self.setAddresses()
 
         if not self.already_paired:
-            if not self.shared:
-                enable_adapter(self.slave_adapter,True)
-                enable_adapter(self.master_adapter,True)
-                #adapter_address(self.slave_adapter, inc_last_octet(self.target_master))
 
-            # set addresses before setup
-            #adapter_address(self.master_adapter, inc_last_octet(self.target_slave))
+            if not self.shared:
+                enable_adapter(self.master_adapter,True)
 
             print 'Slave adapter: ', self.slave_adapter
             print 'Master adapter: ', self.master_adapter
@@ -336,15 +344,17 @@ class Btmitm():
             RuntimeError('Slave not discovered')
         if 'name' not in self.master_info or not self.master_info['name']:
             RuntimeError('Master not discovered')
-        if args.slave_name:
+
+        if self.slave_name:
             self.option(slave_name = args.slave_name)
         else:
-            self.option(slave_name = self.slave_info['name']+'_btmitm')
+            self.option(slave_name = self.slave_info['name']+'_btproxy')
 
-        if args.master_name:
+        if self.master_name:
             self.option(master_name = args.master_name)
         else:
-            self.option(master_name = self.master_info['name']+'_btmitm')
+            self.option(master_name = self.master_info['name']+'_btproxy')
+
         if self.shared:
             self.option(master_name = self.slave_name)
 
@@ -393,7 +403,7 @@ class Btmitm():
             self.pair(self.slave_adapter,self.target_slave)
             self.already_paired = True
             print 'paired'
-            with open('.last-btmitm-pairing','w+') as f:
+            with open('.last-btproxy-pairing','w+') as f:
                 pickle.dump(self,f)
                 
         self.set_class();
@@ -448,12 +458,12 @@ class Btmitm():
             reloads the manipulation code during runtime
         """
         try:
-            import btmitm_replace
-            reload(btmitm_replace)
+            import replace
+            reload(replace)
         except Exception as e: 
             print e
-        from btmitm_replace import btmitm_slave_cb, btmitm_master_cb
-        return btmitm_slave_cb, btmitm_master_cb
+        from replace import btproxy_slave_cb, btproxy_master_cb
+        return btproxy_slave_cb, btproxy_master_cb
 
     def connect_to_svc(self,device, **kwargs):
         socktype = bluetooth.RFCOMM

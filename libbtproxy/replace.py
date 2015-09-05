@@ -59,14 +59,14 @@ def update_spp_packet_length(s):
 
 
 # Wrapper functions for catching errors
-def btmitm_master_cb(req):
+def btproxy_master_cb(req):
     try: 
         req = master_cb(req)
         assert req is not None
     except Exception as e: print e
     return req
 
-def btmitm_slave_cb(res):
+def btproxy_slave_cb(res):
     try: 
         res = slave_cb(res)
         assert res is not None
