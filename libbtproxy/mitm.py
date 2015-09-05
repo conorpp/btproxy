@@ -1,7 +1,7 @@
 from __future__ import print_function
 import bluetooth, sys, time, select, os
 import argparser,pickle
-from threading import Thread
+from threading import Thread, RLock
 from bluetooth import *
 from utils import *
 from adapter import *
@@ -136,6 +136,8 @@ class Btproxy():
         self.master_info = {}
         self.starting_psm = 0x1023
         self.pickle_path = '.last-btproxy-pairing'
+        self.connections = []
+        self.connections_lock = None
         self._options = [
                 ('target_slave',None),
                 ('target_master',None),
@@ -153,7 +155,7 @@ class Btproxy():
 
     def option(self,**kwargs):
         for i in self._options:
-            if i[0] in kwargs:
+            if i[0] in kwargs and kwargs[i[0]] is not None:
                 setattr(self,i[0],kwargs[i[0]])
 
     def setInterface(self, inter):
@@ -202,11 +204,13 @@ class Btproxy():
     def _do_mitm(self, server_sock, service):
         try:
             slave_sock = self.connect_to_svc(service, addr='slave' )
+            with self.connections_lock:
+                self.connections.append(service)
             print('Connected to service "' + service['name']+'"')
         except Exception as e:
             print('Couldn\'t connect to "' + service['name'] +'": ', e)
             self.barrier.wait()
-            raise e
+            sys.exit()
         self.barrier.wait()
         master_sock, client_info = server_sock.accept()
         print("Accepted connection from ", client_info)
@@ -310,7 +314,6 @@ class Btproxy():
             import sys
             sys.exit(1)
 
-        instrument_bluetoothd()
 
         if not self.already_paired:
             if not self.shared:
@@ -353,7 +356,7 @@ class Btproxy():
             RuntimeError('Slave not discovered')
         if 'name' not in self.master_info or not self.master_info['name']:
             RuntimeError('Master not discovered')
-
+        
         if self.slave_name:
             self.option(slave_name = args.slave_name)
         else:
@@ -412,7 +415,6 @@ class Btproxy():
         
         sdpthread = Thread(target =mitm_sdp, args = (self.target_master,self.target_slave,))
         sdpthread.daemon = True
-        sdpthread.start()
 
         threads = []
 
@@ -425,10 +427,12 @@ class Btproxy():
                 enable_adapter(self.master_adapter, True)
             self.already_paired = True
             print('paired')
-            with open('.last-btproxy-pairing','w+') as f:
-                pickle.dump(self,f)
  
+        instrument_bluetoothd()
+        time.sleep(1.5)
+        sdpthread.start()
         self.barrier = Barrier(len(self.socks)+1)
+        self.connections_lock = RLock()
 
         for service in self.socks:
             print('Proxy listening for connections for "'+service['name']+'"')
@@ -444,12 +448,16 @@ class Btproxy():
         print('Attempting connections with %d services on slave' % len(self.socks))
         self.barrier.wait()
         #self.set_class();
-        if len(threads) < len(self.socks):
-            if len(threads) == 0:
+        if len(self.connections) < len(self.socks):
+            if len(self.connections) == 0:
                 exit(1)
             print('At least one service was unable to connect.  Continuing anyways but this may not work.')
 
         print('Now you\'re free to connect to "'+self.slave_name+'" from master device.')
+        with open('.last-btproxy-pairing','w+') as f:
+            self.barrier = None
+            self.connections_lock = None
+            pickle.dump(self,f)
 
         if not self.already_paired:
             if not self.shared: 
@@ -497,7 +505,7 @@ class Btproxy():
         while True:
             try:
                 sock=bluetooth.BluetoothSocket( socktype )
-                if kwargs.get('addr',None) == 'slave':
+                if kwargs.get('addr',None) == 'slave' and 0:
                     for i in range(0,3):
                         try:
                             addrport=(adapter_address(self.slave_adapter),self.starting_psm)
@@ -508,13 +516,7 @@ class Btproxy():
                         except BluetoothError as e:
                             if i==2: raise e
 
-                #if kwargs.get('restart_adapter'):
-                if 0:
-                    enable_adapter(self.master_adapter,False)
-                    sock.connect((device['host'], device['port'] if device['port'] else 1))
-                    enable_adapter(self.master_adapter,True)
-                else:
-                    sock.connect((device['host'], device['port'] if device['port'] else 1))
+                sock.connect((device['host'], device['port'] if device['port'] else 1))
 
                 print_verbose('Connected')
                 return sock
@@ -557,8 +559,12 @@ class Btproxy():
                 and self.target_master == other.target_master):
             self.notequal = "Different slave or master target addresses"
 
-        if not (self.master_adapter == other.master_adapter 
-            and self.slave_adapter == other.slave_adapter):
+        
+        adapters = list_adapters()
+        comparer = other if other.slave_adapter else self
+        if not (comparer.master_adapter in adapters 
+            and comparer.slave_adapter in adapters
+            and (comparer.slave_adapter != comparer.master_adapter or len(adapters)==1)):
             self.notequal = "Different adapters"
 
         return not self.notequal
