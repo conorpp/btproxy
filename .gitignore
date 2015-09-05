@@ -5,8 +5,13 @@
 *.o
 *.swp
 *.log
+*.info
 .last-btmitm-pairing
 *xml
 ble/
+build/
+dist/
+dbus*
+
 a.out
 __pycache__/
