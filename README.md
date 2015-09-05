@@ -25,16 +25,18 @@ sudo python setup.py install
 
 To run a simple MiTM or proxy on two devices, run
 
-    btproxy <master-bt-mac-address> <slave-bt-mac-address>
-    
+```bash
+btproxy <master-bt-mac-address> <slave-bt-mac-address>
+```
+   
 Run `btproxy` to get a list of command arguments.
 
 #### Example
 
 ```bash
-    # This will connect to the slave 40:14:33:66:CC:FF device and 
-    # wait for a connection from the master F1:64:F3:31:67:88 device
-    btproxy F1:64:F3:31:67:88 40:14:33:66:CC:FF
+# This will connect to the slave 40:14:33:66:CC:FF device and 
+# wait for a connection from the master F1:64:F3:31:67:88 device
+btproxy F1:64:F3:31:67:88 40:14:33:66:CC:FF
 ```
 
 Where the master is typically the phone and the slave mac
@@ -55,14 +57,14 @@ There are two ways to scan for devices: scanning and inquiring.
 hcitool can be used to do this:
 
 ```bash
-    hcitool scan
-    hcitool inq
+hcitool scan
+hcitool inq
 ```
 
 To get a list of services on a device:
 
 ```bash
-    sdptool records <bt-address>
+sdptool records <bt-address>
 ```
 
 ### Usage
