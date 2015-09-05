@@ -5,30 +5,33 @@
 
 ### Dependencies
 
-Need at least 1 Bluetooth card (either USB or internal).
-
-Needs Linux or OSX OS.
-
-Need bluez tools
+- Need at least 1 Bluetooth card (either USB or internal).
+- \*nix or OS X.
+- BlueZ
 
 For a debian system, run
 
+```bash
     sudo apt-get install bluez bluez-utils bluez-tools libbluetooth-dev python-dev
+```
 
 ### Installation
 
+```bash
     sudo python setup.py install
+```
 
 ### Running
 
-Run btproxy to get a list of command arguments.
+Run `btproxy` to get a list of command arguments.
 
 To run a simple MiTM or proxy on two devices, run
 
     btproxy <master-bt-mac-address> <slave-bt-mac-address>
 
-e.g.
+#### Example
 
+```bash
     # This will connect to the 40:14:33:66:CC:FF device and 
     # wait for a connection from F1:64:F3:31:67:88
     btproxy.py F1:64:F3:31:67:88 40:14:33:66:CC:FF
@@ -36,6 +39,7 @@ e.g.
     # You should be able to follow the state of the program
     # from the output.  It will scan the services of both the
     # devices.  
+```
 
 Where the master mac address is typically the phone and the slave mac
 address is typically the other peripherial device (headphones, keyboard, obd2 dongle, etc).
@@ -91,8 +95,7 @@ will be caught and regular transmission will continue.
 
 ### TODO
 
-BLE
-
+- BLE
 - Improve the file logging of the traffic and make it more interactive for
 - replays/manipulation.
 - Indicate which service is which in the output.
@@ -135,21 +138,19 @@ Make sure the bluetooth adaptors are plugged in and enabled.
 
 Run
 
+```bash
     # See the list of all adaptors
-    
     hciconfig -a
 
     # Enable
-
     sudo hciconfig hciX up
 
-    if you get this message
-
+    # if you get this message
     Can't init device hci0: Operation not possible due to RF-kill (132)
 
-    Then try unblocking it with the rfkill command
-
+    # Then try unblocking it with the rfkill command
     sudo rfkill unblock all
+```
 
 
 
