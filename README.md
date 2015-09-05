@@ -1,7 +1,6 @@
 
-# BT MiTM
-
-## Bluetooth Man in The Middle tool
+# Btproxy
+## Bluetooth Proxy tool
 
 ### Dependencies
 
