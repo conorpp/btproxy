@@ -6,79 +6,86 @@
 ### Dependencies
 
 - Need at least 1 Bluetooth card (either USB or internal).
-- \*nix or OS X.
+- Need to be running Linux, another *nix, or OS X.
 - BlueZ
 
 For a debian system, run
 
 ```bash
-    sudo apt-get install bluez bluez-utils bluez-tools libbluetooth-dev python-dev
+sudo apt-get install bluez bluez-utils bluez-tools libbluetooth-dev python-dev
 ```
 
 ### Installation
 
 ```bash
-    sudo python setup.py install
+sudo python setup.py install
 ```
 
 ### Running
 
-Run `btproxy` to get a list of command arguments.
-
 To run a simple MiTM or proxy on two devices, run
 
     btproxy <master-bt-mac-address> <slave-bt-mac-address>
+    
+Run `btproxy` to get a list of command arguments.
 
 #### Example
 
 ```bash
-    # This will connect to the 40:14:33:66:CC:FF device and 
-    # wait for a connection from F1:64:F3:31:67:88
-    btproxy.py F1:64:F3:31:67:88 40:14:33:66:CC:FF
-
-    # You should be able to follow the state of the program
-    # from the output.  It will scan the services of both the
-    # devices.  
+    # This will connect to the slave 40:14:33:66:CC:FF device and 
+    # wait for a connection from the master F1:64:F3:31:67:88 device
+    btproxy F1:64:F3:31:67:88 40:14:33:66:CC:FF
 ```
 
-Where the master mac address is typically the phone and the slave mac
-address is typically the other peripherial device (headphones, keyboard, obd2 dongle, etc).
+Where the master is typically the phone and the slave mac
+address is typically the other peripherial device (smart watch, headphones, keyboard, obd2 dongle, etc).
+
+The master is the device the sends the connection request and the slave is 
+the device listening for something to connect to it.
+
+After the proxy connects to the slave device and the master connects to the proxy device,
+you will be able to see traffic and modify it.
 
 #### How to find the BT MAC Address?  
 
 Well, you can look it up in the settings usually for a phone.  The most
 robost way is to put the device in advertising mode and scan for it.
 
-There are two ways to scan for it.
+There are two ways to scan for devices: scanning and inquiring.
+hcitool can be used to do this:
 
-Using hcitool scan or inquiring types of inquiries:
-
+```bash
     hcitool scan
     hcitool inq
+```
 
-To get a list of services:
+To get a list of services on a device:
+
+```bash
     sdptool records <bt-address>
-
-The master is the device the sends the connection request and the slave is 
-the device listening for something to connect to it.
+```
 
 ### Usage
 
-The program will lookup the class and address of both devices
-and set the bluetooth dongles address and class to match those 
-devices, i.e. "cloning" them.
-
-This will fool most simple or classical bluetooth devices.
+Some devices may restrict connecting based on the name, class, or address of another bluetooth device.  
+So the program will lookup those three properties of the target devices to be proxied,
+and then clone them onto the proxying adapter(s).
 
 Then it will first try connecting to the slave device from the
 cloned master adaptor.  It will make a socket for each service
 hosted by the slave and relay traffic for each one independently.
-TODO: indicate in the output which service the output is from.
 
 After the slave is connected, the cloned slave adaptor will be set
-to be listening for a connection.  At this point, the real master device
-should connect to the adaptor.  The MiTM connection will be complete
-and the communication will be output to STDOUT.
+to be listening for a connection from the master.  At this point, the real master device
+should connect to the adaptor.  After the master connects, the proxied connection
+is complete.
+
+#### Using only one adapter
+
+This program uses either 1 or 2 Bluetooth adapters.  If you use one adapter, then only
+the slave device will be cloned.  Both devices will be cloned if 2 adapters are used; this might
+be necessary for more restrictive Bluetooth devices.
+
 
 ### Advanced Usage
 
@@ -87,7 +94,26 @@ in the replace.py file.  Just edit the master_cb and
 slave_cb callback functions.  This are called upon receiving 
 data and the returned data is sent back out to the corresponding device.
 
-See the example functions for manipulating Pebble watch traffic in replace.py
+```python
+def master_cb(req):
+    """
+        Received something from master, about to be sent to slave.
+    """
+    print '<< ', repr(req)
+    open('mastermessages.log', 'a+b').write(req)
+    return req
+
+def slave_cb(res):
+    """
+        Same as above but it's from slave about to be sent to master
+    """
+    print '>> ', repr(res)
+    open('slavemessages.log', 'a+b').write(res)
+    return res
+```
+
+
+Also see the example functions for [manipulating Pebble watch traffic in replace.py](https://github.com/conorpp/btproxy/blob/master/libbtproxy/replace.py#L33)
 
 This code can be edited and reloaded during runtime by entering 'r'
 into the program console. This avoids the pains of reconnecting.  Any errors
@@ -152,5 +178,12 @@ Run
     sudo rfkill unblock all
 ```
 
+#### UserWarning: <path>/.python-eggs is writable by group/others
+
+Fix
+
+```bash
+chmod g-rw,o-x <path>/.python-eggs
+```
 
 
