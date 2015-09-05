@@ -13,11 +13,11 @@ Need bluez tools
 
 For a debian system, run
 
-    - sudo apt-get install bluez bluez-utils bluez-tools libbluetooth-dev python-dev
+    sudo apt-get install bluez bluez-utils bluez-tools libbluetooth-dev python-dev
 
 ### Installation
 
-    - sudo python setup.py install
+    sudo python setup.py install
 
 ### Running
 
@@ -25,13 +25,13 @@ Run btproxy to get a list of command arguments.
 
 To run a simple MiTM or proxy on two devices, run
 
-    btproxy. <master-bt-mac-address> <slave-bt-mac-address>
+    btproxy <master-bt-mac-address> <slave-bt-mac-address>
 
 e.g.
 
     # This will connect to the 40:14:33:66:CC:FF device and 
     # wait for a connection from F1:64:F3:31:67:88
-    ./btproxy.py F1:64:F3:31:67:88 40:14:33:66:CC:FF
+    btproxy.py F1:64:F3:31:67:88 40:14:33:66:CC:FF
 
     # You should be able to follow the state of the program
     # from the output.  It will scan the services of both the
@@ -93,16 +93,12 @@ will be caught and regular transmission will continue.
 
 BLE
 
-Improve the file logging of the traffic and make it more interactive for
-replays/manipulation.
-
-Indicate which service is which in the output.
-
-Provide control for disconnecting/connecting services.
-
-PCAP file support
-
-ncurses?
+- Improve the file logging of the traffic and make it more interactive for
+- replays/manipulation.
+- Indicate which service is which in the output.
+- Provide control for disconnecting/connecting services.
+- PCAP file support
+- ncurses?
 
 
 ### How it works
