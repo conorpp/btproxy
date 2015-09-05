@@ -43,7 +43,7 @@ int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
     if (btproxy == -1)
     {
         signal(SIGALRM, alarmcb);
-        if ( alarm(3) < 0)
+        if ( alarm(1) < 0)
         {
             perror("alarm");
             exit(1);
