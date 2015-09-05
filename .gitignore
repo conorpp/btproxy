@@ -6,12 +6,12 @@
 *.swp
 *.log
 *.info
-.last-btmitm-pairing
+.last-btproxy-pairing
 *xml
 ble/
 build/
 dist/
 dbus*
-
+*.egg-info/
 a.out
 __pycache__/

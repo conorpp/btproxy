@@ -1,6 +1,6 @@
 /*
   Date: Jun 24 2015
-  Source File: btmitm_clone.c
+  Source File: btproxy_clone.c
 
   Interface to setting attributes on a Bluetooth card
   for the python program.

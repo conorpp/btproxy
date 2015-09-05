@@ -132,6 +132,8 @@ if __name__ == '__main__':
     else:
         path = manager.DefaultAdapter()
 
+    print (path)
+
     adapter = dbus.Interface(bus.get_object("org.bluez", path),
             "org.bluez.Adapter")
 
@@ -145,6 +147,7 @@ if __name__ == '__main__':
             device = adapter.FindDevice(args[1])
             adapter.RemoveDevice(device)
         except: pass
+        print (adapter)
 
         agent.set_exit_on_release(False)
         adapter.CreatePairedDevice(args[1], path, capability,

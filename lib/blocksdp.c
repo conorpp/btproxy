@@ -31,7 +31,7 @@ static int isValidPSM(int p)
 
 static int unlock = 0;
 
-uint32_t btmitm = -1;
+uint32_t btproxy = -1;
 
 static void alarmcb(int sig)
 {
@@ -40,7 +40,7 @@ static void alarmcb(int sig)
 
 int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen)
 {
-    if (btmitm == -1)
+    if (btproxy == -1)
     {
         signal(SIGALRM, alarmcb);
         if ( alarm(3) < 0)

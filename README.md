@@ -29,7 +29,7 @@ run these commands:
     - make
 
 The program relies on calling replace_bluetoothd.bash and bluez_simple_agent.py
-As seperate processes right now.  So btmitm.py should be run in the same
+As seperate processes right now.  So btproxy.py should be run in the same
 directory
 
 If you need to use python 2 or 3 specifically,
@@ -38,20 +38,20 @@ make clean && make.  A few other things need to be updated for python 3 too.
 
 ### Running
 
-    from the project root, run ./btmitm.py to get a list of
+    from the project root, run ./btproxy.py to get a list of
     command arguments.
 
     It needs to be in the same directory as clone.so and bluez_simple_agent.py.
 
     To run a simple MiTM attack on two devices, run
 
-        ./btmitm.py <master-bt-mac-address> <slave-bt-mac-address>
+        ./btproxy.py <master-bt-mac-address> <slave-bt-mac-address>
 
     e.g.
 
         # This will connect to the 40:14:33:66:CC:FF device and 
         # wait for a connection from F1:64:F3:31:67:88
-        ./btmitm.py F1:64:F3:31:67:88 40:14:33:66:CC:FF
+        ./btproxy.py F1:64:F3:31:67:88 40:14:33:66:CC:FF
 
         # You should be able to follow the state of the program
         # from the output.  It will scan the services of both the
@@ -99,11 +99,11 @@ make clean && make.  A few other things need to be updated for python 3 too.
 ### Advanced Usage
 
     Manipulation of the traffic can be handled via python 
-    in the btmitm_replace.py file.  Just edit the master_cb and
+    in the btproxy_replace.py file.  Just edit the master_cb and
     slave_cb callback functions.  This are called upon receiving 
     data and the returned data is sent back out to the corresponding device.
 
-    See the example functions for manipulating Pebble watch traffic in btmitm_replace.py
+    See the example functions for manipulating Pebble watch traffic in btproxy_replace.py
 
     This code can be edited and reloaded during runtime by entering 'r'
     into the program console. This avoids the pains of reconnecting.  Any errors

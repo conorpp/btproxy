@@ -22,6 +22,6 @@ parser.add_argument('-2','--slave-name', help='Spoofed name to use for slave ada
 parser.add_argument('-C','--slave-active', help='Spoofed slave adaptor will actively connect to'+
                                                 ' master device instead of listening for a connection', action='store_true')
 parser.add_argument('-v','--verbose', help='Print additional info for debugging', action="store_true")
-parser.add_argument('-z','--no-sdp', help='Let bluetoothd run SDP normally and let btmitm advertise copied services. (Not completed)', action="store_true")
+parser.add_argument('-z','--no-sdp', help='Let bluetoothd run SDP normally and let btproxy advertise copied services. (Not completed)', action="store_true")
 
 args = parser.parse_args()

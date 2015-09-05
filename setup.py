@@ -1,5 +1,5 @@
 import os,sys
-from distutils.core import setup, Extension
+from setuptools import setup, Extension
 
 def read(fname):
     return open(os.path.join(os.path.dirname(__file__), fname)).read()
@@ -10,7 +10,7 @@ mods.append(Extension('clone',
     include_dirs=["/usr/include/python"+sys.version],
     libraries=['bluetooth'],
     extra_compile_args=['-O3'],
-    sources=['lib/' + x for x in ['bdaddr.c', 'oui.c', 'btmitm_clone.c']]))
+    sources=['lib/' + x for x in ['bdaddr.c', 'oui.c', 'btproxy_clone.c']]))
 
 
 mods.append(Extension('blocksdp',
@@ -27,7 +27,7 @@ setup(
     author_email = "conorpp94@gmail.com",
     description = ("A man-in-the-middle tool for doing active Bluetooth analysis. "),
     license = "BSD",
-    keywords = "Bluetooth man-in-the-middle mitm btmitm proxy libbtproxy",
+    keywords = "Bluetooth man-in-the-middle mitm btproxy proxy libbtproxy btmitm",
     ext_modules=mods,
     url = "https://github.com/conorpp/btproxy",
     packages=['libbtproxy',],

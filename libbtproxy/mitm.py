@@ -400,7 +400,11 @@ class Btproxy():
         self.setup_adapters()
 
         if not self.already_paired:
+            if not self.shared:
+                enable_adapter(self.master_adapter, False)
             self.pair(self.slave_adapter,self.target_slave)
+            if not self.shared:
+                enable_adapter(self.master_adapter, True)
             self.already_paired = True
             print 'paired'
             with open('.last-btproxy-pairing','w+') as f:

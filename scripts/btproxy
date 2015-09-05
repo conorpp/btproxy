@@ -16,9 +16,9 @@ if args.addr_master and args.addr_slave:
         old_btproxy=None
         with open(btproxy.pickle_path,'r') as f:
             old_btproxy = pickle.load(f)
-        if old_btproxy == btmitm:
+        if old_btproxy == btproxy:
             print 'Loading last paired device settings... (use --repair to disable)'
-            btproxy = old_btmitm
+            btproxy = old_btproxy
 
     if args.interface:
         btproxy.setInterface(args.interface)
