@@ -1,22 +1,21 @@
 # Command line interface
+from __future__ import print_function
 
 from argparser import args
 import subprocess,sys,re,imp,os
 import bluetooth, clone
 
-
 def _run(cmd):
     try:
         if args.verbose:
-            print 'running ', cmd
+            print('running ', cmd)
         return subprocess.check_output(cmd)
     except Exception as e:
-        print e, cmd
+        print(e, cmd)
         raise RuntimeError( ' '.join(cmd)+' failed')
 
 def instrument_bluetoothd():
-    _run(['bash','replace_bluetoothd',imp.find_module('blocksdp')[1]])
-
+    _run(['replace_bluetoothd',imp.find_module('blocksdp')[1]])
 
 def inquire(addr):
     return parse_inq(_run(['sdptool','records', addr]), addr)
@@ -31,7 +30,7 @@ def advertise_adapter(adapt, cond=True):
     _run(['hciconfig',adapt, 'piscan' if cond else 'pscan'])
 
 def pair_adapter(adapt, addr):
-    path = _run(['bash','which','bluez_simple_agent_nouser']).strip()
+    path = _run(['which','bluez_simple_agent_nouser']).strip()
     _run(['python', path, adapt, addr])
 
 def enable_adapter_ssp(adapt, cond):
@@ -56,7 +55,7 @@ def lookup_info(addr, **kwargs):
                 info['name'] = bluetooth.lookup_name(addr)
                 return info
 
-        print 'Still looking for ', addr,'...', ' Is it discoverable? '
+        print( 'Still looking for ', addr,'...', ' Is it discoverable? ')
 
 
 def adapter_address(inter, addr=None):

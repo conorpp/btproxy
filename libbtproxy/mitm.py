@@ -1,3 +1,4 @@
+from __future__ import print_function
 import bluetooth, sys, time, select, os
 import argparser,pickle
 from threading import Thread
@@ -52,9 +53,9 @@ class StickyBluetoothSocket(bluetooth.BluetoothSocket):
 
     def rebuild(self,):
         bluetooth.BluetoothSocket.__init__(self,self._proto)
-        if self.server:
-            self.bind('', self.addrport[1])
-            self.listen(10)
+        #if self.server:
+        #    self.bind(self.addrport)
+        #    self.listen(10)
         self.connect(self.address)
 
     def connect(self,addrport=None):
@@ -133,6 +134,7 @@ class Btproxy():
         self.shared = False
         self.slave_info = {}
         self.master_info = {}
+        self.starting_psm = 0x1023
         self.pickle_path = '.last-btproxy-pairing'
         self._options = [
                 ('target_slave',None),
@@ -169,21 +171,25 @@ class Btproxy():
                 tries = tries -1
                 if tries <= 0:
                     break
-                print e
-                print 'Trying again ..'
+                print(e)
+                print('Trying again ..')
                 time.sleep(1)
 
         self.already_paired = True
 
 
     def start_service(self, service, adapter_addr=''):
+        print_verbose('Starting service ',service)
         server_sock=None
 
         if service['protocol'].lower() == 'l2cap':
             server_sock=BluetoothSocket( L2CAP )
         else:
             server_sock=BluetoothSocket( RFCOMM )
-        server_sock.bind(('',service['port']))
+        addrport = (adapter_address(self.master_adapter),service['port'])
+        print_verbose('Binding to ',addrport)
+
+        server_sock.bind(addrport)
         server_sock.listen(1)
 
         port = server_sock.getsockname()[1]
@@ -195,8 +201,9 @@ class Btproxy():
 
     def _do_mitm(self, server_sock, service):
         try:
-            slave_sock = self.connect_to_svc(service)
+            slave_sock = self.connect_to_svc(service, addr='slave' )
         except Exception as e:
+            print('Couldn\'t connect to ' + service['name'] +': ' + e[0])
             self.barrier.wait()
             raise e
         self.barrier.wait()
@@ -220,11 +227,11 @@ class Btproxy():
                     try:
                         relay(master_sock, slave_sock, reqhandler)
                     except BluetoothError as e:
-                        print e, 'socket master reconnecting...'
+                        print(e, 'socket master reconnecting...')
                         slave_sock.close()
                         master_sock, client_info = server_sock.accept()
-                        print e, 'socket slave reconnecting...'
-                        slave_sock = self.connect_to_svc(service, reconnect=True)
+                        print(e, 'socket slave reconnecting...')
+                        slave_sock = self.connect_to_svc(service, reconnect=True, addr='slave' )
                         print("Accepted connection from ", client_info)
                         fds = [master_sock, slave_sock, sys.stdin]
                         break
@@ -234,8 +241,8 @@ class Btproxy():
                     try:
                         relay(slave_sock, master_sock, reshandler)
                     except BluetoothError as e:
-                        print e, 'socket slave reconnecting...'
-                        slave_sock = self.connect_to_svc(service, reconnect=True)
+                        print(e, 'socket slave reconnecting...')
+                        slave_sock = self.connect_to_svc(service, reconnect=True, addr='slave' )
                         fds = [master_sock, slave_sock, sys.stdin]
                         break
 
@@ -244,40 +251,40 @@ class Btproxy():
                     if s == sys.stdin:
                         cmd = raw_input()
 
-                        if cmd: print '<< '+ cmd +' >>'
+                        if cmd: print('<< '+ cmd +' >>')
                         cmd = cmd.lower()
                         if cmd[:1] == 'r' or cmd[:7] == 'refresh':
-                            print '<< Refreshed >>'
+                            print('<< Refreshed >>')
                             reshandler, reqhandler = self.refreshHandlers()
                         elif cmd[:1] == 'a':
-                            print '<< Resending last request >>'
+                            print('<< Resending last request >>')
                             slave_sock.send( reshandler( lastreq ))
                         elif cmd[:2] == 'sm':
-                            print 'Enter msg to send to slave:'
+                            print('Enter msg to send to slave:')
                             a = raw_input()
-                            print '>>', a
+                            print('>>', a)
                             slave_sock.send(a)
 
                         elif cmd[:2] == 'mm':
-                            print 'Enter msg to send to master:'
+                            print('Enter msg to send to master:')
                             a = raw_input()
-                            print '<<', a
+                            print('<<', a)
                             master_sock.send(a)
                         elif cmd[:2] == 'sf':
-                            print 'sending file contents to slave...'
+                            print('sending file contents to slave...')
                             contents = open(cmd.split(' ')[1],'r').read()
-                            print '>>', contents
+                            print('>>', contents)
                             slave_sock.send(contents)
 
 
                         elif cmd[:2] == 'mf':
-                            print 'sending file contents to master...'
+                            print('sending file contents to master...')
                             contents = open(cmd.split(' ')[1],'r').read()
-                            print '<<', contents
+                            print('<<', contents)
                             master_sock.send(contents)
 
                 except BluetoothError as e:
-                    print e
+                    print(e)
 
         server_sock.close() 
         master_sock.close() 
@@ -298,32 +305,33 @@ class Btproxy():
 
     def setup_adapters(self,):
         if os.getuid() != 0:
-            print "Must run as root. (sudo)"
+            print("Must run as root. (sudo)")
             import sys
             sys.exit(1)
 
         instrument_bluetoothd()
 
-        if not self.shared:
-            adapters = list_adapters()
-            master_adapter = ''
-            slave_adapter = ''
-            if len(adapters) < 2:
-                if len(adapters) > 0:
-                    print 'Using shared adapter'
-                    slave_adapter = adapters[0]
-                    master_adapter = adapters[0]
-                    self.shared = True
+        if not self.already_paired:
+            if not self.shared:
+                adapters = list_adapters()
+                master_adapter = ''
+                slave_adapter = ''
+                if len(adapters) < 2:
+                    if len(adapters) > 0:
+                        print('Using shared adapter')
+                        slave_adapter = adapters[0]
+                        master_adapter = adapters[0]
+                        self.shared = True
+                    else:
+                        raise RuntimeError('Needs to be atleast one bluetooth adapter')
                 else:
-                    raise RuntimeError('Needs to be atleast one bluetooth adapter')
-            else:
-                slave_adapter = adapters[0]
-                master_adapter = adapters[1]
-            self.option(master_adapter = master_adapter)
-            self.option(slave_adapter = slave_adapter)
+                    slave_adapter = adapters[0]
+                    master_adapter = adapters[1]
+                self.option(master_adapter = master_adapter)
+                self.option(slave_adapter = slave_adapter)
 
-        self.set_adapter_order()
-        enable_adapter(self.slave_adapter,True)
+            self.set_adapter_order()
+            enable_adapter(self.slave_adapter,True)
 
         self.setAddresses()
 
@@ -332,12 +340,12 @@ class Btproxy():
             if not self.shared:
                 enable_adapter(self.master_adapter,True)
 
-            print 'Slave adapter: ', self.slave_adapter
-            print 'Master adapter: ', self.master_adapter
+            print('Slave adapter: ', self.slave_adapter)
+            print('Master adapter: ', self.master_adapter)
 
-            print 'Looking up info on slave ('+self.target_slave+')'
+            print('Looking up info on slave ('+self.target_slave+')')
             self.slave_info = lookup_info(self.target_slave)
-            print 'Looking up info on master ('+self.target_master+')'
+            print('Looking up info on master ('+self.target_master+')')
             self.master_info = lookup_info(self.target_master)
 
         if 'name' not in self.slave_info or not self.slave_info['name']:
@@ -360,7 +368,7 @@ class Btproxy():
 
 
         # clone the slave adapter as the master device
-        print 'Spoofing master name as ', self.slave_name
+        print('Spoofing master name as ', self.slave_name)
         adapter_name(self.master_adapter, self.slave_name)
 
         # have the spoofed slave connect directly to master
@@ -386,7 +394,7 @@ class Btproxy():
         enable_adapter_ssp(self.slave_adapter,True)
         enable_adapter_ssp(self.master_adapter,True)
         advertise_adapter(self.master_adapter, True)
-        print 'Spoofing slave name as ', self.master_name
+        print('Spoofing slave name as ', self.master_name)
         adapter_name(self.slave_adapter, self.master_name)
 
     def set_class(self,):
@@ -398,31 +406,31 @@ class Btproxy():
 
     def mitm(self,):
         self.setup_adapters()
-
-        if not self.already_paired:
-            if not self.shared:
-                enable_adapter(self.master_adapter, False)
-            self.pair(self.slave_adapter,self.target_slave)
-            if not self.shared:
-                enable_adapter(self.master_adapter, True)
-            self.already_paired = True
-            print 'paired'
-            with open('.last-btproxy-pairing','w+') as f:
-                pickle.dump(self,f)
-                
+               
         self.set_class();
         
         sdpthread = Thread(target =mitm_sdp, args = (self.target_master,self.target_slave,))
         sdpthread.daemon = True
         sdpthread.start()
 
-     
-        socks = self.safe_connect(self.target_slave)
-        self.barrier = Barrier(len(socks)+1)
         threads = []
 
-        for service in socks:
-            print 'Beginning MiTM on ', service['name']
+        if not self.already_paired:
+            self.socks = self.safe_connect(self.target_slave)
+            if not self.shared:
+                enable_adapter(self.master_adapter, False)
+            self.pair(self.slave_adapter,self.target_slave)
+            if not self.shared:
+                enable_adapter(self.master_adapter, True)
+            self.already_paired = True
+            print('paired')
+            with open('.last-btproxy-pairing','w+') as f:
+                pickle.dump(self,f)
+ 
+        self.barrier = Barrier(len(self.socks)+1)
+
+        for service in self.socks:
+            print('Beginning MiTM on ', service['name'])
             server_sock = self.start_service(service)
             thread = Thread(target = self.do_mitm, args = (server_sock, service,))
             thread.daemon = True
@@ -455,7 +463,7 @@ class Btproxy():
         signal.signal(signal.SIGINT, signal_handler)
         signal.pause()
 
-        print 'Now connect to '+self.master_name+' from the master device'
+        print('Now connect to '+self.master_name+' from the master device')
 
         for i in threads:
             i.join()
@@ -470,11 +478,12 @@ class Btproxy():
             import replace
             reload(replace)
         except Exception as e: 
-            print e
+            print (e)
         from replace import btproxy_slave_cb, btproxy_master_cb
         return btproxy_slave_cb, btproxy_master_cb
 
     def connect_to_svc(self,device, **kwargs):
+        print_verbose('connecting to', device)
         socktype = bluetooth.RFCOMM
         if device['protocol'] == None or device['protocol'].lower() == 'rfcomm':
             socktype = bluetooth.RFCOMM
@@ -486,8 +495,18 @@ class Btproxy():
 
         while True:
             try:
-                print_verbose('Connecting to ', device)
                 sock=bluetooth.BluetoothSocket( socktype )
+                if kwargs.get('addr',None) == 'slave':
+                    for i in range(0,3):
+                        try:
+                            addrport=(adapter_address(self.slave_adapter),self.starting_psm)
+                            print_verbose('binding to ', addrport)
+                            sock.bind(addrport)
+                            self.starting_psm += 2
+                            break
+                        except BluetoothError as e:
+                            if i==2: raise e
+
                 #if kwargs.get('restart_adapter'):
                 if 0:
                     enable_adapter(self.master_adapter,False)
@@ -499,10 +518,10 @@ class Btproxy():
                 print_verbose('Connected')
                 return sock
             except BluetoothError as e:
-                print 'Couldnt connect: ',e
+                print('Couldnt connect: ',e)
                 if not kwargs.get('reconnect',False):
                     raise RuntimeError("connect_to_svc")
-                print 'Reconnecting...'
+                print('Reconnecting...')
 
 
     def safe_connect(self,target):
@@ -513,7 +532,7 @@ class Btproxy():
         services = bluetooth.find_service(address=target)
         
         if len(services) <= 0:
-            print 'Running inquiry scan'
+            print( 'Running inquiry scan')
             services = inquire(target)
 
         socks = []
@@ -521,7 +540,7 @@ class Btproxy():
             try:
                 socks.append( svc )
             except BluetoothError as e:
-                print 'Couldn\'t connect: ',e
+                print('Couldn\'t connect: ',e)
 
         if len(services) > 0:
             return socks
