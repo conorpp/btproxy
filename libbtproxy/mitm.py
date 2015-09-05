@@ -435,6 +435,11 @@ class Btproxy():
         print('Attempting connections with %d services on slave' % len(socks))
         self.barrier.wait()
         self.set_class();
+        if len(threads) < len(socks):
+            if len(threads) == 0:
+                exit(1)
+            print('At least one service was unable to connect.  Continuing anyways but this may not work.')
+
         print('Now you\'re free to connect to "'+self.slave_name+'" from master device.')
 
         if not self.already_paired:
