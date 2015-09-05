@@ -202,8 +202,9 @@ class Btproxy():
     def _do_mitm(self, server_sock, service):
         try:
             slave_sock = self.connect_to_svc(service, addr='slave' )
+            print('Connected to service "' + service['name']+'"')
         except Exception as e:
-            print('Couldn\'t connect to ' + service['name'] +': ' + e[0])
+            print('Couldn\'t connect to "' + service['name'] +'": ', e)
             self.barrier.wait()
             raise e
         self.barrier.wait()
@@ -430,7 +431,7 @@ class Btproxy():
         self.barrier = Barrier(len(self.socks)+1)
 
         for service in self.socks:
-            print('Beginning MiTM on ', service['name'])
+            print('Proxy listening for connections for "'+service['name']+'"')
             server_sock = self.start_service(service)
             thread = Thread(target = self.do_mitm, args = (server_sock, service,))
             thread.daemon = True
@@ -438,12 +439,12 @@ class Btproxy():
 
         for thr in threads:
             thr.start()
-        self.set_class();
+        #self.set_class();
 
-        print('Attempting connections with %d services on slave' % len(socks))
+        print('Attempting connections with %d services on slave' % len(self.socks))
         self.barrier.wait()
-        self.set_class();
-        if len(threads) < len(socks):
+        #self.set_class();
+        if len(threads) < len(self.socks):
             if len(threads) == 0:
                 exit(1)
             print('At least one service was unable to connect.  Continuing anyways but this may not work.')
@@ -518,9 +519,8 @@ class Btproxy():
                 print_verbose('Connected')
                 return sock
             except BluetoothError as e:
-                print('Couldnt connect: ',e)
                 if not kwargs.get('reconnect',False):
-                    raise RuntimeError("connect_to_svc")
+                    raise RuntimeError(e)
                 print('Reconnecting...')
 
 
@@ -549,10 +549,21 @@ class Btproxy():
 
 
     def __eq__(self, other):
-        return (isinstance(other, self.__class__)
-            and self.target_slave == other.target_slave
-            and self.target_master == other.target_master
-            )
+        self.notequal = ''
+        if not (isinstance(other, self.__class__)):
+            self.notequal = "Different class"
+        if not (
+                self.target_slave == other.target_slave
+                and self.target_master == other.target_master):
+            self.notequal = "Different slave or master target addresses"
+
+        if not (self.master_adapter == other.master_adapter 
+            and self.slave_adapter == other.slave_adapter):
+            self.notequal = "Different adapters"
+
+        return not self.notequal
 
     def __ne__(self, other):
         return not self.__eq__(other)
+
+
