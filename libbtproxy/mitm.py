@@ -314,7 +314,6 @@ class Btproxy():
             import sys
             sys.exit(1)
 
-
         if not self.already_paired:
             if not self.shared:
                 adapters = list_adapters()
@@ -372,9 +371,6 @@ class Btproxy():
 
 
         # clone the slave adapter as the master device
-        print('Spoofing master name as ', self.slave_name)
-        adapter_name(self.master_adapter, self.slave_name)
-
         # have the spoofed slave connect directly to master
         #TODO
         """
@@ -395,23 +391,25 @@ class Btproxy():
                     time.sleep(1)
         """
  
-        enable_adapter_ssp(self.slave_adapter,True)
-        enable_adapter_ssp(self.master_adapter,True)
-        advertise_adapter(self.master_adapter, True)
+    def set_adapter_props(self,):
+
         print('Spoofing slave name as ', self.master_name)
         adapter_name(self.slave_adapter, self.master_name)
+        enable_adapter_ssp(self.slave_adapter,True)
+        adapter_class(self.slave_adapter, self.master_info['class'])
 
-    def set_class(self,):
         if not self.shared: 
             adapter_class(self.master_adapter, self.slave_info['class'])
-            adapter_class(self.slave_adapter, self.master_info['class'])
-        else:
-            adapter_class(self.slave_adapter, self.slave_info['class'])
+            enable_adapter_ssp(self.master_adapter,True)
+            print('Spoofing master name as ', self.slave_name)
+            adapter_name(self.master_adapter, self.slave_name)
+
+        advertise_adapter(self.master_adapter, True)
 
     def mitm(self,):
         self.setup_adapters()
                
-        self.set_class();
+        self.set_adapter_props()
         
         sdpthread = Thread(target =mitm_sdp, args = (self.target_master,self.target_slave,))
         sdpthread.daemon = True
@@ -429,7 +427,9 @@ class Btproxy():
             print('paired')
  
         instrument_bluetoothd()
+
         time.sleep(1.5)
+        self.set_adapter_props()    # do this again because bluetoothd resets properties
         sdpthread.start()
         self.barrier = Barrier(len(self.socks)+1)
         self.connections_lock = RLock()
