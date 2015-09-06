@@ -210,6 +210,7 @@ class Btproxy():
         self._do_mitm(server_sock,service)
 
     def _do_mitm(self, server_sock, service):
+        reshandler, reqhandler = self.refresh_handlers()
         try:
             slave_sock = self.connect_to_svc(service, addr='slave' )
             with self.connections_lock:
@@ -223,7 +224,6 @@ class Btproxy():
         master_sock, client_info = server_sock.accept()
         print("Accepted connection from ", client_info)
         fds = [master_sock, slave_sock, sys.stdin]
-        reshandler, reqhandler = self.refresh_handlers()
         lastreq = ''
         lastres = ''
         def relay(sender, recv, cb):
@@ -505,14 +505,14 @@ class Btproxy():
 
         def btproxy_master_cb(req):
             try: 
-                req = replace.btproxy_master_cb(req)
+                req = replace.master_cb(req)
                 assert req is not None
             except Exception as e: print(e)
             return req
 
         def btproxy_slave_cb(res):
             try: 
-                res = replace.btproxy_slave_cb(res)
+                res = replace.slave_cb(res)
                 assert res is not None
             except Exception as e: print(e)
             return res

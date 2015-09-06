@@ -1,4 +1,4 @@
-
+from __future__ import print_function
 import re, struct, binascii
 
 def master_cb(req):

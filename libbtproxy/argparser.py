@@ -1,5 +1,5 @@
 
-import argparse,sys
+import argparse,sys,os
 
 
 parser = argparse.ArgumentParser(
@@ -15,7 +15,8 @@ parser.add_argument('-n','--repair', help='Don\'t reuse existing paired connecti
 parser.add_argument('-c','--copy-addresses', help='Copy the address of the target devices to adapters.  Will use the slave address if only using one adapter.  Useful for emulating some devices.  This may not work on some adapters.', action='store_true')
 
 parser.add_argument('-i','--interface', help='Select a Bluetooth interface to use (for only using one adapter)', )
-parser.add_argument('-s','--script', help='Pass a python script containing function definitions for master_cb and slave_cb for live manipulation of traffic', )
+parser.add_argument('-s','--script', help='Pass a python script containing function definitions for master_cb and slave_cb for live manipulation of traffic', 
+            type=lambda x: x if os.path.exists(x) else parser.error(x+' does not exist'))
 parser.add_argument('-l','--list', help='List Adaptors', action='store_true')
 
 parser.add_argument('-1','--master-name', help='Spoofed name to use for master adaptor', default=None)
