@@ -1,5 +1,5 @@
 from __future__ import print_function
-import bluetooth, sys, time, select, os
+import bluetooth, sys, time, select, os, imp
 import pickle
 from threading import Thread, RLock
 from bluetooth import *
@@ -7,6 +7,10 @@ from .utils import *
 from .adapter import *
 from . import argparser
 
+if sys.version < '3':
+    input = raw_input
+else:
+    from importlib import reload
 
 # increments the last octet of a mac addr and returns it as string
 class StickyBluetoothSocket(bluetooth.BluetoothSocket):
@@ -124,7 +128,7 @@ def mitm_sdp(master_addr,slave_addr):
                     print_verbose('disconnected',e)
                     s.close()
                     try:
-                        str(e[0]).index('104'):      # Connection reset by peer
+                        str(e[0]).index('104')      # Connection reset by peer
                         s.target.close()
                         s.target.rebuild()
                     except:pass
@@ -145,12 +149,13 @@ class Btproxy():
                 ('target_slave',None),
                 ('target_master',None),
                 ('already_paired',False),
-                ('slave_name','btproxy_slave'),
-                ('master_name','btproxy_master'),
+                ('slave_name',''),
+                ('master_name',''),
                 ('master_adapter',None),
                 ('slave_adapter',None),
                 ('shared_adapter',None),
                 ('clone_addresses',False),
+                ('script',''),
                 ]
         for i in self._options:
             setattr(self,i[0],i[1])
@@ -218,7 +223,7 @@ class Btproxy():
         master_sock, client_info = server_sock.accept()
         print("Accepted connection from ", client_info)
         fds = [master_sock, slave_sock, sys.stdin]
-        reshandler, reqhandler = self.refreshHandlers()
+        reshandler, reqhandler = self.refresh_handlers()
         lastreq = ''
         lastres = ''
         def relay(sender, recv, cb):
@@ -257,13 +262,13 @@ class Btproxy():
                 # user commands
                 try:
                     if s == sys.stdin:
-                        cmd = raw_input()
+                        cmd = input()
 
                         if cmd: print('<< '+ cmd +' >>')
                         cmd = cmd.lower()
                         if cmd[:1] == 'r' or cmd[:7] == 'refresh':
                             print('<< Refreshed >>')
-                            reshandler, reqhandler = self.refreshHandlers()
+                            reshandler, reqhandler = self.refresh_handlers()
                         elif cmd[:1] == 'a':
                             print('<< Resending last request >>')
                             slave_sock.send( reshandler( lastreq ))
@@ -461,7 +466,10 @@ class Btproxy():
         with open('.last-btproxy-pairing','wb+') as f:
             self.barrier = None
             self.connections_lock = None
+            script_s = self.script
+            self.script = None
             pickle.dump(self,f)
+            self.script = script_s
 
         if not self.already_paired:
             if not self.shared: 
@@ -483,16 +491,33 @@ class Btproxy():
         sdpthread.join()
 
 
-    def refreshHandlers(self):
+    def refresh_handlers(self):
         """
             reloads the manipulation code during runtime
         """
-        try:
-            import replace
-            reload(replace)
-        except Exception as e: 
-            print (e)
-        from replace import btproxy_slave_cb, btproxy_master_cb
+        if self.script:
+            replace = imp.load_source('btproxy_replace_user_supplied', self.script)
+        else:
+            try:
+                from . import replace
+            except Exception as e: 
+                print (e)
+
+        def btproxy_master_cb(req):
+            try: 
+                req = replace.btproxy_master_cb(req)
+                assert req is not None
+            except Exception as e: print(e)
+            return req
+
+        def btproxy_slave_cb(res):
+            try: 
+                res = replace.btproxy_slave_cb(res)
+                assert res is not None
+            except Exception as e: print(e)
+            return res
+
+
         return btproxy_slave_cb, btproxy_master_cb
 
     def connect_to_svc(self,device, **kwargs):

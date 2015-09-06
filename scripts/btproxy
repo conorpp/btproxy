@@ -33,6 +33,7 @@ if args.addr_master and args.addr_slave:
         copy_addresses = args.copy_addresses,
         slave_name = args.slave_name,
         master_name = args.master_name,
+        script = args.script,
     )
 
     btproxy.mitm()
