@@ -1,7 +1,8 @@
 # Command line interface
 from __future__ import print_function
 
-from argparser import args
+from . import argparser
+args = argparser.args
 import subprocess,sys,re,imp,os
 import bluetooth, clone
 
@@ -13,6 +14,9 @@ def _run(cmd):
     except Exception as e:
         print(e, cmd)
         raise RuntimeError( ' '.join(cmd)+' failed')
+
+def restart_bluetoothd():
+    _run(['replace_bluetoothd'])
 
 def instrument_bluetoothd():
     _run(['replace_bluetoothd',imp.find_module('blocksdp')[1]])
@@ -39,7 +43,7 @@ def enable_adapter_ssp(adapt, cond):
 
 def list_adapters():
     s = _run(['hciconfig','-a'])
-    return re.compile(r'(hci[0-9]+):').findall(s)
+    return re.compile(r'(hci[0-9]+):').findall(str(s))
 
 def lookup_info(addr, **kwargs):
     Class = kwargs.get('Class',True)
@@ -49,6 +53,7 @@ def lookup_info(addr, **kwargs):
     while True:
         s = _run(['hcitool','inq'])
         for i in s.splitlines():
+            i = str(i)
             if addr in i:
                 info['class'] = re.compile(r'class: ([A-Fa-fx0-9]*)').findall(i)[0]
                 info['addr'] = addr
@@ -67,7 +72,7 @@ def adapter_address(inter, addr=None):
             raise ValueError('Invalid Address: '+addr);
     else:
         s = _run(['hciconfig',inter])
-        return re.compile(r'Address: ([A-Fa-f0-9:]*)').findall(s)[0]
+        return re.compile(r'Address: ([A-Fa-f0-9:]*)').findall(str(s))[0]
 
 def adapter_class(inter, clas=None):
     if clas is not None:
@@ -76,7 +81,7 @@ def adapter_class(inter, clas=None):
         #clone.set_adapter_class(inter,clas);
     else:
         s = _run(['hciconfig',inter, 'class'])
-        return re.compile(r'Class: ([A-Fa-fx0-9]*)').findall(s)[0]
+        return re.compile(r'Class: ([A-Fa-fx0-9]*)').findall(str(s))[0]
 
 def adapter_name(inter, name=None):
     if name is not None:
@@ -85,10 +90,11 @@ def adapter_name(inter, name=None):
         s = _run(['hciconfig',inter, 'name', name])
     else:
         s = _run(['hciconfig',inter, 'name'])
-        return re.compile(r'Name: \'(.*)\'').findall(s)[0]
+        return re.compile(r'Name: \'(.*)\'').findall(str(s))[0]
 
 
 def parse_inq(inq,target):
+    inq = inq.decode('utf-8')
     lines = inq.split('\n')
     services = []
     device = {'host': target, 'description': 'btproxy',

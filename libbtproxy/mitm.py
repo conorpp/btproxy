@@ -1,10 +1,11 @@
 from __future__ import print_function
 import bluetooth, sys, time, select, os
-import argparser,pickle
+import pickle
 from threading import Thread, RLock
 from bluetooth import *
-from utils import *
-from adapter import *
+from .utils import *
+from .adapter import *
+from . import argparser
 
 
 # increments the last octet of a mac addr and returns it as string
@@ -122,9 +123,11 @@ def mitm_sdp(master_addr,slave_addr):
                 except BluetoothError as e:
                     print_verbose('disconnected',e)
                     s.close()
-                    if '104' in str(e[0]):      # Connection reset by peer
+                    try:
+                        str(e[0]).index('104'):      # Connection reset by peer
                         s.target.close()
                         s.target.rebuild()
+                    except:pass
                     s.rebuild()
 
 
@@ -315,6 +318,7 @@ class Btproxy():
             sys.exit(1)
 
         if not self.already_paired:
+            restart_bluetoothd()
             if not self.shared:
                 adapters = list_adapters()
                 master_adapter = ''
@@ -393,16 +397,16 @@ class Btproxy():
  
     def set_adapter_props(self,):
 
-        print('Spoofing slave name as ', self.master_name)
-        adapter_name(self.slave_adapter, self.master_name)
-        enable_adapter_ssp(self.slave_adapter,True)
-        adapter_class(self.slave_adapter, self.master_info['class'])
+        print('Spoofing master name as ', self.slave_name)
+        adapter_name(self.master_adapter, self.slave_name)
+        enable_adapter_ssp(self.master_adapter,True)
+        adapter_class(self.master_adapter, self.slave_info['class'])
 
         if not self.shared: 
-            adapter_class(self.master_adapter, self.slave_info['class'])
-            enable_adapter_ssp(self.master_adapter,True)
-            print('Spoofing master name as ', self.slave_name)
-            adapter_name(self.master_adapter, self.slave_name)
+            adapter_class(self.slave_adapter, self.master_info['class'])
+            enable_adapter_ssp(self.slave_adapter,True)
+            print('Spoofing slave name as ', self.master_name)
+            adapter_name(self.slave_adapter, self.master_name)
 
         advertise_adapter(self.master_adapter, True)
 
@@ -454,7 +458,7 @@ class Btproxy():
             print('At least one service was unable to connect.  Continuing anyways but this may not work.')
 
         print('Now you\'re free to connect to "'+self.slave_name+'" from master device.')
-        with open('.last-btproxy-pairing','w+') as f:
+        with open('.last-btproxy-pairing','wb+') as f:
             self.barrier = None
             self.connections_lock = None
             pickle.dump(self,f)

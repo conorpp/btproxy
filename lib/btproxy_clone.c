@@ -115,7 +115,7 @@ static PyMethodDef py_module_methods[] = {
     {NULL, NULL}
 };
 
-#ifdef PYTHON34
+#if defined PYTHON34 || defined PYTHON340
 static struct PyModuleDef clone_module = {
     PyModuleDef_HEAD_INIT,
     "clone",   /* name of module */

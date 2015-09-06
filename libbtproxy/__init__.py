@@ -1,8 +1,7 @@
 
-import argparser
+from . import argparser
 import clone
-import utils
-import replace
-import clone
-import adapter
-import mitm
+from . import utils
+from . import replace
+from . import adapter
+from . import mitm

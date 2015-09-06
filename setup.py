@@ -10,7 +10,7 @@ mods = list()
 mods.append(Extension('clone',
     include_dirs=["/usr/include/python"+sys.version],
     libraries=['bluetooth'],
-    extra_compile_args=['-O3'],
+    extra_compile_args=['-O3','-DPYTHON'+sys.version.replace('.','')],
     sources=['lib/' + x for x in ['bdaddr.c', 'oui.c', 'btproxy_clone.c']]))
 
 

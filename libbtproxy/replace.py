@@ -11,7 +11,7 @@ def master_cb(req):
         req is the incoming packet as a byte array
         starting with the length of packet at offset 0x0
     """
-    print '<< ', repr(req)
+    print( '<< ', repr(req))
     open('mastermessages.log', 'a+b').write(req)
     return req
 
@@ -20,7 +20,7 @@ def slave_cb(res):
         Same as above but it's from slave
         about to be sent to master
     """
-    print '>> ', repr(res)
+    print('>> ', repr(res))
     open('slavemessages.log', 'a+b').write(res)
     return res
 
@@ -63,12 +63,12 @@ def btproxy_master_cb(req):
     try: 
         req = master_cb(req)
         assert req is not None
-    except Exception as e: print e
+    except Exception as e: print(e)
     return req
 
 def btproxy_slave_cb(res):
     try: 
         res = slave_cb(res)
         assert res is not None
-    except Exception as e: print e
+    except Exception as e: print(e)
     return res

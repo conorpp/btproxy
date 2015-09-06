@@ -1,6 +1,6 @@
 
 import sys,time
-import argparser
+from . import argparser
 
 if sys.version < '3':
     from threading import Semaphore

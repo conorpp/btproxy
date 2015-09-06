@@ -7,14 +7,14 @@ from libbtproxy.adapter import *
 
 
 if args.addr_master and args.addr_slave:
-    print( 'Running MiTM on master ', args.addr_master, ' and slave ', args.addr_slave)
+    print( 'Running proxy on master ', args.addr_master, ' and slave ', args.addr_slave)
 
     btproxy = Btproxy(target_master = args.addr_master,
                     target_slave = args.addr_slave,
                     )
     if not args.repair and os.path.isfile(btproxy.pickle_path):
         old_btproxy=None
-        with open(btproxy.pickle_path,'r') as f:
+        with open(btproxy.pickle_path,'rb') as f:
             old_btproxy = pickle.load(f)
         if old_btproxy == btproxy:
             print()
