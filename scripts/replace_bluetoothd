@@ -2,4 +2,9 @@
 
 pid=$(ps aux | grep bluetoothd | grep -vP 'replace|grep'| awk '{print $2}' )
 sudo kill -9 $pid
-sudo LD_PRELOAD=$1 bluetoothd 
+if [[ -n "$1" ]] ;
+then
+    sudo LD_PRELOAD=$1 bluetoothd 
+else
+    sudo bluetoothd 
+fi
