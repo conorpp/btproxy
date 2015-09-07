@@ -91,11 +91,12 @@ be necessary for more restrictive Bluetooth devices.
 ### Advanced Usage
 
 Manipulation of the traffic can be handled via python 
-in the replace.py file.  Just edit the master_cb and
+by passing an inline script.  Just implement the master_cb and
 slave_cb callback functions.  This are called upon receiving 
 data and the returned data is sent back out to the corresponding device.
 
 ```python
+# replace.py
 def master_cb(req):
     """
         Received something from master, about to be sent to slave.
