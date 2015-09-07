@@ -3,6 +3,7 @@
 ## Bluetooth Proxy tool
 
 [Walkthrough](http://conorpp.com/blog/proxying-bluetooth-devices-for-security-analysis-using-btproxy/)
+![](http://conorpp.com/assets/images/btproxy/cover.jpg.fb.jpg)
 
 ### Dependencies
 
