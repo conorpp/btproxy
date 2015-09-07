@@ -2,6 +2,8 @@
 # Btproxy
 ## Bluetooth Proxy tool
 
+[Walkthrough](http://conorpp.com/blog/proxying-bluetooth-devices-for-security-analysis-using-btproxy/)
+
 ### Dependencies
 
 - Need at least 1 Bluetooth card (either USB or internal).
