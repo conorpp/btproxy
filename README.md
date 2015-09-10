@@ -9,7 +9,7 @@
 
 - Need at least 1 Bluetooth card (either USB or internal).
 - Need to be running Linux, another *nix, or OS X.
-- BlueZ
+- BlueZ 4
 
 For a debian system, run
 
@@ -163,6 +163,11 @@ A similiar approach to BLE can be taken.
 
 ### Errors
 
+#### btproxy or bluetoothd hangs
+
+If you are using bluez 5, you should try uninstalling and installing [bluez 4](http://www.bluez.org/download/).  I've had problems with 
+bluez 5 hanging.
+
 #### error accessing bluetooth device
 
 Make sure the bluetooth adaptors are plugged in and enabled.
@@ -190,5 +195,7 @@ Fix
 ```bash
 chmod g-rw,o-x <path>/.python-eggs
 ```
+
+
 
 
