@@ -20,13 +20,15 @@ class StickyBluetoothSocket(bluetooth.BluetoothSocket):
         self.disconnected = 2
         self.sticky_state = self.not_connected
         self.address = address
+        self.prevent_recursion = False
         self.target = kwargs.get('target',None)
         self.server = kwargs.get('server',False)
+        self._cb = kwargs.get('callback',None)
         if 'sock' in kwargs:
             proto = kwargs['sock']._proto
         bluetooth.BluetoothSocket.__init__(self,proto,kwargs.get('sock',None))
 
-    def send(self,data):
+    def send(self,data,):
         if self.sticky_state == self.not_connected:
             if self.address is None: 
                 raise RuntimeError('No address is set in sticky socket')
@@ -34,6 +36,10 @@ class StickyBluetoothSocket(bluetooth.BluetoothSocket):
         elif self.sticky_state == self.disconnected:
             self.rebuild()
             self.connect(self.address)
+        if self._cb and not self.prevent_recursion:
+            self.prevent_recursion = True
+            data = self._cb(self,data)
+            self.prevent_recursion = False
         return bluetooth.BluetoothSocket.send(self,data)
 
     def accept(self,):
@@ -45,8 +51,14 @@ class StickyBluetoothSocket(bluetooth.BluetoothSocket):
     def setTarget(self, target):
         self.target = target
         
+    def setCallback(self, cb):
+        self._cb = cb
+
     @RateLimited(25)
     def relay(self,data):
+        return self.relay_non_limited(data)
+
+    def relay_non_limited(self,data):
         try:
             self.target.send(data)
         except BluetoothError as e:
@@ -58,9 +70,6 @@ class StickyBluetoothSocket(bluetooth.BluetoothSocket):
 
     def rebuild(self,):
         bluetooth.BluetoothSocket.__init__(self,self._proto)
-        #if self.server:
-        #    self.bind(self.addrport)
-        #    self.listen(10)
         self.connect(self.address)
 
     def connect(self,addrport=None):
@@ -71,17 +80,53 @@ class StickyBluetoothSocket(bluetooth.BluetoothSocket):
         else:
             return self.accept()
 
-def mitm_sdp(master_addr,slave_addr):
+def load_sdp_handlers(script):
+        if script is None: return None,None
+        master_cb = None
+        slave_cb = None
+        try:
+            replace = imp.load_source('btproxy_replace_user_supplied', script)
+            try: master_cb = replace.master_sdp_cb
+            finally: slave_cb = replace.slave_sdp_cb
+        except Exception as e: 
+            print_verbose(e)
+
+        def btproxy_sdp_master_cb(sock,req):
+            try: 
+                req = master_cb(sock,req)
+                assert req is not None
+            except Exception as e: print(e)
+            return req
+
+        def btproxy_sdp_slave_cb(sock,res):
+            try: 
+                res = slave_cb(sock,res)
+                assert res is not None
+            except Exception as e: print(e)
+            return res
+
+        master_cb_wrap = master_cb if master_cb is None else btproxy_sdp_master_cb
+        slave_cb_wrap = slave_cb if slave_cb is None else btproxy_sdp_slave_cb
+
+        return master_cb,slave_cb
+
+
+def mitm_sdp(master_addr,slave_addr,script=None):
     server=StickyBluetoothSocket( '',bluetooth.L2CAP )
     server.bind(('',1))
     server.listen(10)
+
     slave_sock=StickyBluetoothSocket((slave_addr,1),bluetooth.L2CAP,)
     master_sock=StickyBluetoothSocket((master_addr,1),bluetooth.L2CAP,)
     slave_sock.setTarget(master_sock)
     master_sock.setTarget(slave_sock)
+
     print_verbose('SDP interceptor started')
+
+    master_cb,slave_cb = load_sdp_handlers(script)
     fds = [server, slave_sock, master_sock]
     c = 0
+
     def clean_fds(fd):
         if fd in fds: fds.remove(fd)
     while True:
@@ -96,12 +141,14 @@ def mitm_sdp(master_addr,slave_addr):
                     slave_sock = new_sock
                     fds.append(slave_sock)
                     new_sock.setTarget(slave_sock)
+                    new_sock.setCallback(slave_cb)
                 elif address[0] == master_addr:
                     print_verbose("SDP Inq from master",address)
                     clean_fds(master_sock)
                     master_sock = new_sock
                     fds.append(master_sock)
                     new_sock.setTarget(slave_sock)
+                    new_sock.setCallback(master_cb)
                     slave_sock.setTarget(master_sock)
                 else:
                     print_verbose("SDP Inq from unknown",address)
@@ -109,6 +156,7 @@ def mitm_sdp(master_addr,slave_addr):
                     clean_fds(master_sock)
                     master_sock = new_sock
                     fds.append(master_sock)
+                    new_sock.setCallback(master_cb)
                     new_sock.setTarget(slave_sock)
                     slave_sock.setTarget(new_sock)
             else:
@@ -420,7 +468,7 @@ class Btproxy():
                
         self.set_adapter_props()
         
-        sdpthread = Thread(target =mitm_sdp, args = (self.target_master,self.target_slave,))
+        sdpthread = Thread(target =mitm_sdp, args = (self.target_master,self.target_slave,self.script))
         sdpthread.daemon = True
 
         threads = []
