@@ -23,7 +23,7 @@ else:
 
 def print_verbose(*args):
     if argparser.args.verbose: 
-        print(args)
+        print(*args)
 
 def die(msg=None):
     if msg: print (msg)
