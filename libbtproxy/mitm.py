@@ -307,7 +307,8 @@ class Btproxy():
                         fds = [master_sock, slave_sock, sys.stdin]
                         break
 
-                # user commands
+                # user commands 
+                # TODO make this clean/modular
                 try:
                     if s == sys.stdin:
                         cmd = input()
@@ -332,10 +333,13 @@ class Btproxy():
                             print('<<', a)
                             master_sock.send(a)
                         elif cmd[:2] == 'sf':
-                            print('sending file contents to slave...')
-                            contents = open(cmd.split(' ')[1],'r').read()
-                            print('>>', contents)
-                            slave_sock.send(contents)
+                            try:
+                                print('sending file contents to slave...')
+                                contents = open(cmd.split(' ')[1],'rb').read()
+                                print('>>', contents)
+                                slave_sock.send(contents)
+                            except:
+                                print('<< sf: Could not open file >>')
 
 
                         elif cmd[:2] == 'mf':
@@ -488,11 +492,12 @@ class Btproxy():
         time.sleep(1.5)
         self.set_adapter_props()    # do this again because bluetoothd resets properties
         sdpthread.start()
+        self.connections = []
         self.barrier = Barrier(len(self.socks)+1)
         self.connections_lock = RLock()
 
         for service in self.socks:
-            print('Proxy listening for connections for "'+service['name']+'"')
+            print('Proxy listening for connections for "'+str(service['name'])+'"')
             server_sock = self.start_service(service)
             thread = Thread(target = self.do_mitm, args = (server_sock, service,))
             thread.daemon = True
