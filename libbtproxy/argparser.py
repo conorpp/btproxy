@@ -26,4 +26,7 @@ parser.add_argument('-C','--slave-active', help='Spoofed slave adaptor will acti
 parser.add_argument('-v','--verbose', help='Print additional info for debugging', action="store_true")
 parser.add_argument('-z','--no-sdp', help='Let bluetoothd run SDP normally and let btproxy advertise copied services. (Not completed)', action="store_true")
 
+parser.add_argument('-q','--inquire-again', help='Inquire the services again, don\'t reuse saved settings.', action="store_true")
+
+
 args = parser.parse_args()

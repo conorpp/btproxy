@@ -1,6 +1,7 @@
-
+from __future__ import print_function
 import sys,time
 from . import argparser
+from threading import RLock
 
 if sys.version < '3':
     from threading import Semaphore
@@ -21,9 +22,13 @@ if sys.version < '3':
 else:
     from threading import Barrier
 
+
+print_lock = RLock()
 def print_verbose(*args):
+    global print_lock
     if argparser.args.verbose: 
-        print(args)
+        with print_lock:
+            print(*args)
 
 def die(msg=None):
     if msg: print (msg)
@@ -62,5 +67,16 @@ def RateLimited(maxPerSecond):
             return ret
         return rateLimitedFunction
     return decorate
+
+
+def remove_duplicate_services(svcs):
+    for i in svcs:
+        for j in svcs:
+            if i==j:
+                continue
+            elif i['protocol'] == j['protocol'] \
+                    and i['port'] == j['port']:
+                svcs.remove(j)
+    return svcs
 
 
