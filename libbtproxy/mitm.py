@@ -416,12 +416,12 @@ class Btproxy():
         if self.slave_name:
             self.option(slave_name = args.slave_name)
         else:
-            self.option(slave_name = self.slave_info['name']+'_btproxy')
+            self.option(slave_name = str(self.slave_info['name'])+'_btproxy')
 
         if self.master_name:
             self.option(master_name = args.master_name)
         else:
-            self.option(master_name = self.master_info['name']+'_btproxy')
+            self.option(master_name = str(self.master_info['name'])+'_btproxy')
 
         if self.shared:
             self.option(master_name = self.slave_name)
