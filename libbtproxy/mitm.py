@@ -153,7 +153,7 @@ def _mitm_sdp(master_addr,slave_addr,script=None):
                     clean_fds(slave_sock)
                     slave_sock = new_sock
                     fds.append(slave_sock)
-                    new_sock.setTarget(master_sock)
+                    new_sock.setTarget(new_sock)
                     new_sock.setCallback(slave_cb)
                     master_sock.setTarget(new_sock)
                 elif address[0] == master_addr:
@@ -275,19 +275,33 @@ class Btproxy():
     def do_mitm(self, server_sock, service):
         self._do_mitm(server_sock,service)
 
+    # TODO clean this way up
     def _do_mitm(self, server_sock, service):
         reshandler, reqhandler = self.refresh_handlers()
-        try:
-            with self.connections_lock:
-                self.connections.append(service)
-            print('Connected to service "' + str(service['name'])+'"')
-        except Exception as e:
-            print('Couldn\'t connect to "' + str(service['name']) +'": ', e)
-            self.barrier.wait()
-            sys.exit()
+        #try:
+        #    with self.connections_lock:
+        #        self.connections.append(service)
+        #except Exception as e:
+        #    print('Couldn\'t connect to "' + str(service['name']) +'": ', e)
+        #    self.barrier.wait()
+        #    sys.exit()
         self.barrier.wait()
         master_sock, client_info = server_sock.accept()
-        slave_sock = self.connect_to_svc(service, addr='slave' )
+
+        slave_sock = None
+        for i in range(0,3):
+            try:
+                slave_sock = self.connect_to_svc(service, addr='slave')
+                break
+            except BluetoothError as e:
+                print('Connection to ', str(service['name']), 'failed: ', e)
+                if i<3:
+                    print('Trying again')
+                else: 
+                    print('Could not connect to ', str(service['name']))
+                    sys.exit()
+        
+        print('Connected to service "' + str(service['name'])+'"')
         print("Accepted connection from ", client_info)
         fds = [master_sock, slave_sock, sys.stdin]
         lastreq = ''
@@ -534,10 +548,10 @@ class Btproxy():
         print('Attempting connections with %d services on slave' % len(self.socks))
         self.barrier.wait()
         #self.set_class();
-        if len(self.connections) < len(self.socks):
-            if len(self.connections) == 0:
-                exit(1)
-            print('At least one service was unable to connect.  Continuing anyways but this may not work.')
+        #if len(self.connections) < len(self.socks):
+        #    if len(self.connections) == 0:
+        #        exit(1)
+        #    print('At least one service was unable to connect.  Continuing anyways but this may not work.')
 
         print('Now you\'re free to connect to "'+self.slave_name+'" from master device.')
         with open('.last-btproxy-pairing','wb+') as f:
