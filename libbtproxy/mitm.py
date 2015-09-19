@@ -58,7 +58,7 @@ class StickyBluetoothSocket(bluetooth.BluetoothSocket):
     def setCallback(self, cb):
         self._cb = cb
 
-    @RateLimited(35)
+    # @RateLimited(35)
     def relay(self,data):
         return self.relay_non_limited(data)
 
@@ -148,14 +148,8 @@ def _mitm_sdp(master_addr,slave_addr,script=None):
         for s in inputready:
             if s == server:
                 new_sock,address = server.accept()
-                #fds = [sock,server,client_sock]
                 if address[0] == slave_addr:
                     print_verbose("SDP Inq from slave",address)
-                    #if master_sock.sticky_state == master_sock.not_connected:
-                    #    print_verbose('master is not connected.  Ignoring.')
-                    #    new_sock.close()
-                    #    clean_fds(slave_sock)
-                    #    continue
                     clean_fds(slave_sock)
                     slave_sock = new_sock
                     fds.append(slave_sock)
@@ -164,11 +158,6 @@ def _mitm_sdp(master_addr,slave_addr,script=None):
                     master_sock.setTarget(new_sock)
                 elif address[0] == master_addr:
                     print_verbose("SDP Inq from master",address)
-                    #if master_sock.sticky_state == master_sock.connected:
-                    #    print_verbose('Master is already connected.  DCing.')
-                    #    for i in fds: clean_fds(i)
-                    #    server.close()
-                    #    raise ValueError('restart')
                     clean_fds(master_sock)
                     master_sock = new_sock
                     fds.append(master_sock)
@@ -181,25 +170,13 @@ def _mitm_sdp(master_addr,slave_addr,script=None):
             else:
                 try:
                     data = s.recv(100000)
-                    if s == slave_sock and len(data) and data[0] == b'\x06':
-                        s.send(b'\x07\x00')
-                        s.close()
-                        s.rebuild()
-                        print_verbose('slave cant know anything')
-                        continue
-                    #    print_verbose('master is not connected.  Ignoring.')
-                    #    for i in fds: clean_fds(i)
-                    #    server.close()
-                    #    raise ValueError('restart')
                     if len(data):
                         print_verbose( '<<SDP>><< '+str(repr(data[0]))+' >><<'+str(len(data))+'>>',s.address[0], '>>' ,s.target.address[0])
                         s.relay(data)
                     else:
                         print_verbose(s.address[0],'disconnected')
                         s.close()
-                        s.rebuild()
-                        s.target.close()
-                        s.target.rebuild()
+                        clean_fds(s)
                     if s.sticky_state == s.disconnected:
                         print_verbose('disconnected', s.error)
                         s.close()
@@ -301,7 +278,6 @@ class Btproxy():
     def _do_mitm(self, server_sock, service):
         reshandler, reqhandler = self.refresh_handlers()
         try:
-            slave_sock = self.connect_to_svc(service, addr='slave' )
             with self.connections_lock:
                 self.connections.append(service)
             print('Connected to service "' + str(service['name'])+'"')
@@ -311,6 +287,7 @@ class Btproxy():
             sys.exit()
         self.barrier.wait()
         master_sock, client_info = server_sock.accept()
+        slave_sock = self.connect_to_svc(service, addr='slave' )
         print("Accepted connection from ", client_info)
         fds = [master_sock, slave_sock, sys.stdin]
         lastreq = ''
