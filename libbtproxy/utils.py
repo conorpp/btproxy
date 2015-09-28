@@ -79,4 +79,3 @@ def remove_duplicate_services(svcs):
                 svcs.remove(j)
     return svcs
 
-
