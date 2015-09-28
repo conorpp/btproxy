@@ -5,6 +5,13 @@
 [Walkthrough](http://conorpp.com/blog/proxying-bluetooth-devices-for-security-analysis-using-btproxy/)
 ![](http://conorpp.com/assets/images/btproxy/cover.jpg.fb.jpg)
 
+### Tested Devices
+
+* Pebble Steel smart watch
+* Moto 360 smart watch
+* OBDLink OBD-II Bluetooth Dongle
+* Withings Smart Baby Monitor
+
 ### Dependencies
 
 - Need at least 1 Bluetooth card (either USB or internal).
