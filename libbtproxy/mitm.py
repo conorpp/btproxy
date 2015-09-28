@@ -20,13 +20,19 @@ class StickyBluetoothSocket(bluetooth.BluetoothSocket):
         self.disconnected = 2
         self.sticky_state = self.not_connected
         self.address = address
+        self.prevent_recursion = False
         self.target = kwargs.get('target',None)
         self.server = kwargs.get('server',False)
+        self._cb = kwargs.get('callback',None)
         if 'sock' in kwargs:
             proto = kwargs['sock']._proto
         bluetooth.BluetoothSocket.__init__(self,proto,kwargs.get('sock',None))
 
-    def send(self,data):
+    def close(self,):
+        bluetooth.BluetoothSocket.close(self,)
+        self.sticky_state = self.not_connected
+
+    def send(self,data,):
         if self.sticky_state == self.not_connected:
             if self.address is None: 
                 raise RuntimeError('No address is set in sticky socket')
@@ -34,6 +40,10 @@ class StickyBluetoothSocket(bluetooth.BluetoothSocket):
         elif self.sticky_state == self.disconnected:
             self.rebuild()
             self.connect(self.address)
+        if self._cb and not self.prevent_recursion:
+            self.prevent_recursion = True
+            data = self._cb(self,data)
+            self.prevent_recursion = False
         return bluetooth.BluetoothSocket.send(self,data)
 
     def accept(self,):
@@ -45,8 +55,14 @@ class StickyBluetoothSocket(bluetooth.BluetoothSocket):
     def setTarget(self, target):
         self.target = target
         
-    @RateLimited(25)
+    def setCallback(self, cb):
+        self._cb = cb
+
+    # @RateLimited(35)
     def relay(self,data):
+        return self.relay_non_limited(data)
+
+    def relay_non_limited(self,data):
         try:
             self.target.send(data)
         except BluetoothError as e:
@@ -58,10 +74,8 @@ class StickyBluetoothSocket(bluetooth.BluetoothSocket):
 
     def rebuild(self,):
         bluetooth.BluetoothSocket.__init__(self,self._proto)
-        #if self.server:
-        #    self.bind(self.addrport)
-        #    self.listen(10)
-        self.connect(self.address)
+        self.sticky_state = self.not_connected
+        #self.connect(self.address)
 
     def connect(self,addrport=None):
         if not self.server:
@@ -71,51 +85,98 @@ class StickyBluetoothSocket(bluetooth.BluetoothSocket):
         else:
             return self.accept()
 
-def mitm_sdp(master_addr,slave_addr):
+def load_sdp_handlers(script):
+        if script is None: return None,None
+        master_cb = None
+        slave_cb = None
+        try:
+            replace = imp.load_source('btproxy_replace_user_supplied', script)
+            try: master_cb = replace.master_sdp_cb
+            finally: slave_cb = replace.slave_sdp_cb
+        except Exception as e: 
+            print_verbose(e)
+
+        def btproxy_sdp_master_cb(sock,req):
+            try: 
+                req = master_cb(sock,req)
+                assert req is not None
+            except Exception as e: print(e)
+            return req
+
+        def btproxy_sdp_slave_cb(sock,res):
+            try: 
+                res = slave_cb(sock,res)
+                assert res is not None
+            except Exception as e: print(e)
+            return res
+
+        master_cb_wrap = master_cb if master_cb is None else btproxy_sdp_master_cb
+        slave_cb_wrap = slave_cb if slave_cb is None else btproxy_sdp_slave_cb
+
+        return master_cb,slave_cb
+
+
+def mitm_sdp(master_addr,slave_addr,script=None):
+    while True:
+        try: _mitm_sdp(master_addr,slave_addr,script)
+        except ValueError:pass
+
+
+def _mitm_sdp(master_addr,slave_addr,script=None):
     server=StickyBluetoothSocket( '',bluetooth.L2CAP )
     server.bind(('',1))
-    server.listen(10)
+    server.listen(1)
+
     slave_sock=StickyBluetoothSocket((slave_addr,1),bluetooth.L2CAP,)
     master_sock=StickyBluetoothSocket((master_addr,1),bluetooth.L2CAP,)
     slave_sock.setTarget(master_sock)
     master_sock.setTarget(slave_sock)
+
     print_verbose('SDP interceptor started')
+
+    master_cb,slave_cb = load_sdp_handlers(script)
     fds = [server, slave_sock, master_sock]
     c = 0
+
     def clean_fds(fd):
-        if fd in fds: fds.remove(fd)
+        if fd in fds: 
+            if fd.sticky_state == fd.connected:
+                fd.close()
+            fds.remove(fd)
     while True:
         inputready, outputready, exceptready = select.select(fds,[],[])
         for s in inputready:
             if s == server:
                 new_sock,address = server.accept()
-                #fds = [sock,server,client_sock]
                 if address[0] == slave_addr:
                     print_verbose("SDP Inq from slave",address)
                     clean_fds(slave_sock)
                     slave_sock = new_sock
                     fds.append(slave_sock)
-                    new_sock.setTarget(slave_sock)
+                    new_sock.setTarget(new_sock)
+                    new_sock.setCallback(slave_cb)
+                    master_sock.setTarget(new_sock)
                 elif address[0] == master_addr:
                     print_verbose("SDP Inq from master",address)
                     clean_fds(master_sock)
                     master_sock = new_sock
                     fds.append(master_sock)
                     new_sock.setTarget(slave_sock)
-                    slave_sock.setTarget(master_sock)
+                    new_sock.setCallback(master_cb)
+                    slave_sock.setTarget(new_sock)
                 else:
                     print_verbose("SDP Inq from unknown",address)
-                    print_verbose("Guessing its from master")
-                    clean_fds(master_sock)
-                    master_sock = new_sock
-                    fds.append(master_sock)
-                    new_sock.setTarget(slave_sock)
-                    slave_sock.setTarget(new_sock)
+                    print_verbose("Ignoring")
             else:
                 try:
                     data = s.recv(100000)
-                    s.relay(data)
-                    print_verbose( '<<SDP>>',s.address[0], '>>' ,s.target.address[0])
+                    if len(data):
+                        print_verbose( '<<SDP>><< '+str(repr(data[0]))+' >><<'+str(len(data))+'>>',s.address[0], '>>' ,s.target.address[0])
+                        s.relay(data)
+                    else:
+                        print_verbose(s.address[0],'disconnected')
+                        s.close()
+                        clean_fds(s)
                     if s.sticky_state == s.disconnected:
                         print_verbose('disconnected', s.error)
                         s.close()
@@ -144,6 +205,7 @@ class Btproxy():
         self.starting_psm = 0x1023
         self.pickle_path = '.last-btproxy-pairing'
         self.connections = []
+        self.servers = []
         self.connections_lock = None
         self._options = [
                 ('target_slave',None),
@@ -191,6 +253,9 @@ class Btproxy():
     def start_service(self, service, adapter_addr=''):
         print_verbose('Starting service ',service)
         server_sock=None
+        if service['port'] in self.servers:
+            print('Port',service['port'],'is already binded to')
+            return server_sock
 
         if service['protocol'].lower() == 'l2cap':
             server_sock=BluetoothSocket( L2CAP )
@@ -200,6 +265,7 @@ class Btproxy():
         print_verbose('Binding to ',addrport)
 
         server_sock.bind(addrport)
+        self.servers.append(service['port'])
         server_sock.listen(1)
 
         port = server_sock.getsockname()[1]
@@ -209,19 +275,33 @@ class Btproxy():
     def do_mitm(self, server_sock, service):
         self._do_mitm(server_sock,service)
 
+    # TODO clean this way up
     def _do_mitm(self, server_sock, service):
         reshandler, reqhandler = self.refresh_handlers()
-        try:
-            slave_sock = self.connect_to_svc(service, addr='slave' )
-            with self.connections_lock:
-                self.connections.append(service)
-            print('Connected to service "' + service['name']+'"')
-        except Exception as e:
-            print('Couldn\'t connect to "' + service['name'] +'": ', e)
-            self.barrier.wait()
-            sys.exit()
+        #try:
+        #    with self.connections_lock:
+        #        self.connections.append(service)
+        #except Exception as e:
+        #    print('Couldn\'t connect to "' + str(service['name']) +'": ', e)
+        #    self.barrier.wait()
+        #    sys.exit()
         self.barrier.wait()
         master_sock, client_info = server_sock.accept()
+
+        slave_sock = None
+        for i in range(0,3):
+            try:
+                slave_sock = self.connect_to_svc(service, addr='slave')
+                break
+            except BluetoothError as e:
+                print('Connection to ', str(service['name']), 'failed: ', e)
+                if i<3:
+                    print('Trying again')
+                else: 
+                    print('Could not connect to ', str(service['name']))
+                    sys.exit()
+        
+        print('Connected to service "' + str(service['name'])+'"')
         print("Accepted connection from ", client_info)
         fds = [master_sock, slave_sock, sys.stdin]
         lastreq = ''
@@ -259,7 +339,8 @@ class Btproxy():
                         fds = [master_sock, slave_sock, sys.stdin]
                         break
 
-                # user commands
+                # user commands 
+                # TODO make this clean/modular
                 try:
                     if s == sys.stdin:
                         cmd = input()
@@ -284,10 +365,13 @@ class Btproxy():
                             print('<<', a)
                             master_sock.send(a)
                         elif cmd[:2] == 'sf':
-                            print('sending file contents to slave...')
-                            contents = open(cmd.split(' ')[1],'r').read()
-                            print('>>', contents)
-                            slave_sock.send(contents)
+                            try:
+                                print('sending file contents to slave...')
+                                contents = open(cmd.split(' ')[1],'rb').read()
+                                print('>>', contents)
+                                slave_sock.send(contents)
+                            except:
+                                print('<< sf: Could not open file >>')
 
 
                         elif cmd[:2] == 'mf':
@@ -368,12 +452,12 @@ class Btproxy():
         if self.slave_name:
             self.option(slave_name = args.slave_name)
         else:
-            self.option(slave_name = self.slave_info['name']+'_btproxy')
+            self.option(slave_name = str(self.slave_info['name'])+'_btproxy')
 
         if self.master_name:
             self.option(master_name = args.master_name)
         else:
-            self.option(master_name = self.master_info['name']+'_btproxy')
+            self.option(master_name = str(self.master_info['name'])+'_btproxy')
 
         if self.shared:
             self.option(master_name = self.slave_name)
@@ -420,13 +504,15 @@ class Btproxy():
                
         self.set_adapter_props()
         
-        sdpthread = Thread(target =mitm_sdp, args = (self.target_master,self.target_slave,))
+        sdpthread = Thread(target =mitm_sdp, args = (self.target_master,self.target_slave,self.script))
         sdpthread.daemon = True
 
         threads = []
 
-        if not self.already_paired:
+        if not self.already_paired or args.inquire_again:
             self.socks = self.safe_connect(self.target_slave)
+
+        if not self.already_paired:
             if not self.shared:
                 enable_adapter(self.master_adapter, False)
             self.pair(self.slave_adapter,self.target_slave)
@@ -440,12 +526,17 @@ class Btproxy():
         time.sleep(1.5)
         self.set_adapter_props()    # do this again because bluetoothd resets properties
         sdpthread.start()
+        self.connections = []  # reset
+        self.servers = []
         self.barrier = Barrier(len(self.socks)+1)
         self.connections_lock = RLock()
-
+        for j in self.socks: print_verbose(j)
         for service in self.socks:
-            print('Proxy listening for connections for "'+service['name']+'"')
             server_sock = self.start_service(service)
+            if server_sock is None:
+                self.socks.remove(service)
+                continue
+            print('Proxy listening for connections for "'+str(service['name'])+'"')
             thread = Thread(target = self.do_mitm, args = (server_sock, service,))
             thread.daemon = True
             threads.append(thread)
@@ -457,10 +548,10 @@ class Btproxy():
         print('Attempting connections with %d services on slave' % len(self.socks))
         self.barrier.wait()
         #self.set_class();
-        if len(self.connections) < len(self.socks):
-            if len(self.connections) == 0:
-                exit(1)
-            print('At least one service was unable to connect.  Continuing anyways but this may not work.')
+        #if len(self.connections) < len(self.socks):
+        #    if len(self.connections) == 0:
+        #        exit(1)
+        #    print('At least one service was unable to connect.  Continuing anyways but this may not work.')
 
         print('Now you\'re free to connect to "'+self.slave_name+'" from master device.')
         with open('.last-btproxy-pairing','wb+') as f:
@@ -574,7 +665,7 @@ class Btproxy():
                 print('Couldn\'t connect: ',e)
 
         if len(services) > 0:
-            return socks
+            return remove_duplicate_services(socks)
         else:
             raise RuntimeError('Could not lookup '+target)
 

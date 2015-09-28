@@ -12,7 +12,7 @@ def master_cb(req):
         starting with the length of packet at offset 0x0
     """
     print( '<< ', repr(req))
-    open('mastermessages.log', 'a+b').write(req)
+    open('mastermessages.log', 'a+b').write(req + b'AAA')
     return req
 
 def slave_cb(res):
