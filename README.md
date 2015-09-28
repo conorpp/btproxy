@@ -12,6 +12,8 @@
 * OBDLink OBD-II Bluetooth Dongle
 * Withings Smart Baby Monitor
 
+If you have tried anything else, please let me know at conorpp (at) vt (dot) edu.  
+
 ### Dependencies
 
 - Need at least 1 Bluetooth card (either USB or internal).
