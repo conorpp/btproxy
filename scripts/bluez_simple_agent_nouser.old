@@ -62,12 +62,10 @@ class Agent(dbus.service.Object):
                 except ValueError:
                     print('invalid pincode')
             else: break
-        print('Using '+str(passkey))
         return passkey
 
     @dbus.service.method("org.bluez.Agent",
             in_signature="o", out_signature="u")
-
     def RequestPasskey(self, device):
         print("RequestPasskey (%s)" % (device))
         global passkey
@@ -82,7 +80,7 @@ class Agent(dbus.service.Object):
                 except ValueError:
                     print('invalid pincode')
             else: break
-        print('Using '+str(passkey))
+
         return dbus.UInt32(passkey)
 
     @dbus.service.method("org.bluez.Agent",
@@ -147,9 +145,9 @@ if __name__ == '__main__':
 
     (options, args) = parser.parse_args()
 
-    # print(options,args)
+    print(options,args)
     print('running ', sys.argv)
-    # print(args)
+    print(args)
     if options.capability:
         capability  = options.capability
 
@@ -158,7 +156,7 @@ if __name__ == '__main__':
     else:
         path = manager.DefaultAdapter()
 
-    # print (path)
+    print (path)
 
     adapter = dbus.Interface(bus.get_object("org.bluez", path),
             "org.bluez.Adapter")
@@ -173,7 +171,7 @@ if __name__ == '__main__':
             device = adapter.FindDevice(args[1])
             adapter.RemoveDevice(device)
         except: pass
-        # print (adapter)
+        print (adapter)
 
         agent.set_exit_on_release(False)
         adapter.CreatePairedDevice(args[1], path, capability,

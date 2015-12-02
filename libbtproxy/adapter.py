@@ -37,7 +37,7 @@ def pair_adapter(adapt, addr):
     path = _run(['which','bluez_simple_agent_nouser']).strip()
     if args.verbose:
         print('running pair', 'python', path, adapt, addr)
-    ret = subprocess.call('python '+ path + ' '+adapt + ' '+ addr,shell=True)
+    ret = subprocess.call('python '+ path + ' '+adapt + ' '+ addr)
     if ret != 0:
         raise RuntimeError("Pairing failed")
 

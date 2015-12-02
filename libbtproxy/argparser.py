@@ -12,6 +12,7 @@ parser.add_argument('addr_slave', help='Bluetooth address of target slave device
 
 parser.add_argument('-a','--set-address', help='Address to set for Bluetooth adaptor (requires -i)', )
 parser.add_argument('-n','--repair', help='Don\'t reuse existing paired connection', action='store_true')
+parser.add_argument('-x','--no-pair', help='Dont pair with target slave device.  This is for reusing an existing pairing already made with BlueZ.', action='store_true')
 parser.add_argument('-c','--copy-addresses', help='Copy the address of the target devices to adapters.  Will use the slave address if only using one adapter.  Useful for emulating some devices.  This may not work on some adapters.', action='store_true')
 
 parser.add_argument('-i','--interface', help='Select a Bluetooth interface to use (for only using one adapter)', )

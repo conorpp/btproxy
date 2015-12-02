@@ -520,7 +520,7 @@ class Btproxy():
         if not self.already_paired or args.inquire_again:
             self.socks = self.safe_connect(self.target_slave)
 
-        if not self.already_paired:
+        if not self.already_paired and not argparser.args.no_pair:
             if not self.shared:
                 enable_adapter(self.master_adapter, False)
             self.pair(self.slave_adapter,self.target_slave)
