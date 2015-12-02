@@ -33,7 +33,7 @@ class Agent(dbus.service.Object):
     @dbus.service.method("org.bluez.Agent",
             in_signature="", out_signature="")
     def Release(self):
-        print("Released")
+        # print("Released")
         sys.exit()
         #if self.exit_on_release:
 
@@ -51,6 +51,18 @@ class Agent(dbus.service.Object):
     def RequestPinCode(self, device):
         print("RequestPinCode (%s)" % (device))
         global passkey
+        while True:
+            print('Enter pin code ['+passkey+']:')
+            pincode = raw_input()
+            if pincode:
+                try:
+                    int(pincode)
+                    passkey = pincode
+                    break
+                except ValueError:
+                    print('invalid pincode')
+            else: break
+        print('Using '+str(passkey))
         return passkey
 
     @dbus.service.method("org.bluez.Agent",
@@ -58,6 +70,18 @@ class Agent(dbus.service.Object):
     def RequestPasskey(self, device):
         print("RequestPasskey (%s)" % (device))
         global passkey
+        while True:
+            print('Enter pin code ['+passkey+']:')
+            pincode = raw_input()
+            if pincode:
+                try:
+                    int(pincode)
+                    passkey = pincode
+                    break
+                except ValueError:
+                    print('invalid pincode')
+            else: break
+        print('Using '+str(passkey))
         return dbus.UInt32(passkey)
 
     @dbus.service.method("org.bluez.Agent",
@@ -74,6 +98,7 @@ class Agent(dbus.service.Object):
             in_signature="ou", out_signature="")
     def RequestConfirmation(self, device, passkey):
         print("RequestConfirmation (%s, %06d)" % (device, passkey))
+        print('confirmed')
         #confirm = ask("Confirm passkey (yes/no): ")
         #if (confirm == "yes"):
         return
@@ -121,9 +146,9 @@ if __name__ == '__main__':
 
     (options, args) = parser.parse_args()
 
-    print(options,args)
+    # print(options,args)
     print('running ', sys.argv)
-    print(args)
+    # print(args)
     if options.capability:
         capability  = options.capability
 
@@ -132,7 +157,7 @@ if __name__ == '__main__':
     else:
         path = manager.DefaultAdapter()
 
-    print (path)
+    # print (path)
 
     adapter = dbus.Interface(bus.get_object("org.bluez", path),
             "org.bluez.Adapter")
@@ -147,7 +172,7 @@ if __name__ == '__main__':
             device = adapter.FindDevice(args[1])
             adapter.RemoveDevice(device)
         except: pass
-        print (adapter)
+        # print (adapter)
 
         agent.set_exit_on_release(False)
         adapter.CreatePairedDevice(args[1], path, capability,

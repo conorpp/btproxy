@@ -488,12 +488,20 @@ class Btproxy():
 
         print('Spoofing master name as ', self.slave_name)
         adapter_name(self.master_adapter, self.slave_name)
-        enable_adapter_ssp(self.master_adapter,True)
+        try:
+            enable_adapter_ssp(self.master_adapter,True)
+        except:
+            print("ssp not supported with "+self.master_adapter)
+            print("Will use legacy pairing")
         adapter_class(self.master_adapter, self.slave_info['class'])
 
         if not self.shared: 
             adapter_class(self.slave_adapter, self.master_info['class'])
-            enable_adapter_ssp(self.slave_adapter,True)
+            try:
+                enable_adapter_ssp(self.slave_adapter,True)
+            except:
+                print("ssp not supported with "+self.slave_adapter)
+                print("Will use legacy pairing")
             print('Spoofing slave name as ', self.master_name)
             adapter_name(self.slave_adapter, self.master_name)
 

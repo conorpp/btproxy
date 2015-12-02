@@ -35,11 +35,14 @@ def advertise_adapter(adapt, cond=True):
 
 def pair_adapter(adapt, addr):
     path = _run(['which','bluez_simple_agent_nouser']).strip()
-    _run(['python', path, adapt, addr])
+    if args.verbose:
+        print('running pair', 'python', path, adapt, addr)
+    ret = subprocess.call('python '+ path + ' '+adapt + ' '+ addr,shell=True)
+    if ret != 0:
+        raise RuntimeError("Pairing failed")
 
 def enable_adapter_ssp(adapt, cond):
     _run(['hciconfig',adapt,'sspmode','1' if cond else '0'])
-
 
 def list_adapters():
     s = _run(['hciconfig','-a'])
