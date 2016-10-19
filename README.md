@@ -23,7 +23,7 @@ If you have tried anything else, please let me know at conorpp (at) vt (dot) edu
 For a debian system, run
 
 ```bash
-sudo apt-get install bluez bluez-utils bluez-tools libbluetooth-dev python-dev
+sudo apt-get install bluez bluez-tools libbluetooth-dev python-dev
 ```
 
 ### Installation
