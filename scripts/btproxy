@@ -39,7 +39,7 @@ if args.addr_master and args.addr_slave:
     btproxy.mitm()
 
 elif args.set_address: 
-    if not args.bluetooth:
+    if not args.interface:
         print('Specify which interface to use (-i)')
         sys.exit()
     if args.set_address:
