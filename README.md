@@ -2,7 +2,7 @@
 # Btproxy
 ## Bluetooth Proxy tool
 
-[Walkthrough](https://conorpp.com/2015/09/05/proxying-bluetooth-devices-for-security-analysis-using-btproxy/)
+[Walkthrough](https://conorpp.com/proxying-bluetooth-devices-for-security-analysis-using-btproxy)
 ![](http://conorpp.com/assets/images/btproxy/cover.jpg.fb.jpg)
 
 ### Tested Devices
