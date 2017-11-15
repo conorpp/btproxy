@@ -17,7 +17,7 @@ If you have tried anything else, please let me know at conorpp (at) vt (dot) edu
 ### Dependencies
 
 - Need at least 1 Bluetooth card (either USB or internal).
-- Need to be running Linux, another *nix, or OS X.
+- Need to be running Linux or another *nix.
 - BlueZ 4
 
 For a debian system, run
