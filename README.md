@@ -1,5 +1,8 @@
 
 # Btproxy
+
+### (Unsupported)
+
 ## Bluetooth Proxy tool
 
 [Walkthrough](https://conorpp.com/proxying-bluetooth-devices-for-security-analysis-using-btproxy)
